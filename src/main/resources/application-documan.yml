@@ -17,6 +17,10 @@ server:
     threads:
       max: 400
       min-spare: 20
+  compression:
+    enabled: true
+    mime-types: application/json
+    min-response-size: 1024
 logging:
   level:
     org:
