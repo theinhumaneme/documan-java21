@@ -1,0 +1,34 @@
+stages:
+  - dev
+  - test
+  - production
+
+build_dev:
+  stage: dev
+  variables:
+    IMAGE_TAG: "theinhumaneme/images:documan-java-21-dev-R$CI_PIPELINE_ID"
+    IMAGE_TAG_LATEST: "theinhumaneme/images:documan-java-21-dev-latest"
+  when: manual
+  script:
+    - docker build -t $IMAGE_TAG -t $IMAGE_TAG_LATEST .  --build-arg ENV=dev
+    - docker push $IMAGE_TAG
+
+build_test:
+  stage: test
+  variables:
+    IMAGE_TAG: "theinhumaneme/images:documan-java-21-test-R$CI_PIPELINE_ID"
+    IMAGE_TAG_LATEST: "theinhumaneme/images:documan-java-21-test-latest"
+  when: manual
+  script:
+    - docker build -t $IMAGE_TAG -t $IMAGE_TAG_LATEST . --build-arg ENV=test
+    - docker push $IMAGE_TAG
+
+build_prod:
+  stage: production
+  variables:
+    IMAGE_TAG: "theinhumaneme/images:documan-java-21-production-R$CI_PIPELINE_ID"
+    IMAGE_TAG_LATEST: "theinhumaneme/images:documan-java-21-production-latest"
+  when: manual
+  script:
+    - docker build -t $IMAGE_TAG -t $IMAGE_TAG_LATEST . --build-arg ENV=production
+    - docker push $IMAGE_TAG
