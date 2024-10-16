@@ -1,6 +1,5 @@
 package com.kalyan.documan.entitiy;
 
-
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
@@ -8,14 +7,14 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.ArrayList;
+import java.util.List;
 
 @Entity
-@Table(name = "department")
+@Table(name = "role")
 @Getter
 @Setter
 @JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")
-public class Department {
+public class Role {
 
     @Id
     @Column(name = "id")
@@ -23,12 +22,10 @@ public class Department {
     private Integer id;
 
     @NotNull
-    @Column(name = "department", nullable = false)
-    private String department;
+    @Column(name = "role", unique = true, nullable = false)
+    private String role = "regular";
 
-    @OneToMany(mappedBy = "department", fetch = FetchType.LAZY)
-    private ArrayList<Subject> subjects;
+    @OneToMany(mappedBy = "role", fetch = FetchType.LAZY)
+    private List<User> users;
 
-    @OneToMany(mappedBy = "department", fetch = FetchType.LAZY)
-    private ArrayList<User> users;
 }

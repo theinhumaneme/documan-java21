@@ -1,13 +1,55 @@
 package com.kalyan.documan.entitiy;
 
+
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.sql.Date;
+import java.util.ArrayList;
+import java.util.UUID;
+
+@Entity
+@Table(name = "file")
+@Getter
+@Setter
+@JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")
 public class File {
 
-    private String name;
-    private String extension;
-    private String mimetype;
-    private float file_size;
-    private Subject subject;
-    private File filetype;
+    @Id
+    @Column(name = "id")
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer id;
 
+    @NotNull
+    @Column(name = "name", nullable = false)
+    private String name;
+
+    @NotNull
+    @Column(name = "size", nullable = false)
+    private Long size;
+
+    @NotNull
+    @Column(name = "uuid", unique = true, columnDefinition = "UUID", nullable = false)
+    private UUID uuid = UUID.randomUUID();
+
+    @NotNull
+    @Column(name = "date_created", nullable = false)
+    private Date dateCreated;
+
+    @NotNull
+    @Column(name = "date_modified", nullable = false)
+    private Date dateModified;
+
+    @JoinColumn(name = "subject_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    private Subject subject;
+
+    @ManyToMany()
+    @JoinTable(name = "favorite_files", joinColumns = @JoinColumn(name = "file_id"), inverseJoinColumns = @JoinColumn(name = "user_id"))
+    private ArrayList<User> favoritedUsers;
 
 }

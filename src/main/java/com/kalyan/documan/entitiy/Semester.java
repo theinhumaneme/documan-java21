@@ -11,11 +11,11 @@ import lombok.Setter;
 import java.util.ArrayList;
 
 @Entity
-@Table(name = "department")
+@Table(name = "semester")
 @Getter
 @Setter
 @JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")
-public class Department {
+public class Semester {
 
     @Id
     @Column(name = "id")
@@ -23,12 +23,13 @@ public class Department {
     private Integer id;
 
     @NotNull
-    @Column(name = "department", nullable = false)
-    private String department;
+    @Column(name = "semester", nullable = false)
+    private String semester;
 
-    @OneToMany(mappedBy = "department", fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "year_id", nullable = false)
+    private Year year;
+
+    @OneToMany(mappedBy = "semester", fetch = FetchType.LAZY)
     private ArrayList<Subject> subjects;
-
-    @OneToMany(mappedBy = "department", fetch = FetchType.LAZY)
-    private ArrayList<User> users;
 }
