@@ -28,3 +28,11 @@ logs/
 .settings/
 .mvn/
 *.iml
+
+Dockerfile
+.gitlab-ci.yml
+.pre-commit-config.yaml
+.git/
+README.md
+.gitattributes
+.dockerignore
