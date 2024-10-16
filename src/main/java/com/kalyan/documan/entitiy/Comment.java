@@ -1,14 +1,14 @@
+/* Copyright (C)2024 Mudumby Kalyan / @theinhumaneme  */
 package com.kalyan.documan.entitiy;
 
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
-import lombok.Setter;
-
 import java.sql.Date;
 import java.util.ArrayList;
+import lombok.Getter;
+import lombok.Setter;
 
 @Entity
 @Table(name = "comment")
@@ -17,46 +17,51 @@ import java.util.ArrayList;
 @JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")
 public class Comment {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Integer id;
 
-    @NotNull
-    @Column(name = "title", columnDefinition = "TEXT", nullable = false)
-    private String title;
+  @NotNull
+  @Column(name = "title", columnDefinition = "TEXT", nullable = false)
+  private String title;
 
-    @NotNull
-    @Column(name = "description", nullable = false)
-    private String description;
+  @NotNull
+  @Column(name = "description", nullable = false)
+  private String description;
 
-    @NotNull
-    @Column(name = "content", columnDefinition = "TEXT", nullable = false)
-    private String content;
+  @NotNull
+  @Column(name = "content", columnDefinition = "TEXT", nullable = false)
+  private String content;
 
-    @NotNull
-    @Column(name = "date_created", nullable = false)
-    private Date dateCreated;
+  @NotNull
+  @Column(name = "date_created", nullable = false)
+  private Date dateCreated;
 
-    @NotNull
-    @Column(name = "date_modified", nullable = false)
-    private Date dateModified;
+  @NotNull
+  @Column(name = "date_modified", nullable = false)
+  private Date dateModified;
 
-    @JoinColumn(name = "post_id", nullable = false)
-    @ManyToOne(fetch = FetchType.LAZY)
-    private Post post;
+  @JoinColumn(name = "post_id", nullable = false)
+  @ManyToOne(fetch = FetchType.LAZY)
+  private Post post;
 
-    @JoinColumn(name = "user_id", nullable = false)
-    @ManyToOne(fetch = FetchType.LAZY)
-    private User user;
+  @JoinColumn(name = "user_id", nullable = false)
+  @ManyToOne(fetch = FetchType.LAZY)
+  private User user;
 
-    // Comments upvoted by the user
-    @ManyToMany()
-    @JoinTable(name = "upvoted_posts", joinColumns = @JoinColumn(name = "comment_id"), inverseJoinColumns = @JoinColumn(name = "user_id"))
-    private ArrayList<Post> upvotedUsers;
+  // Comments upvoted by the user
+  @ManyToMany()
+  @JoinTable(
+      name = "upvoted_posts",
+      joinColumns = @JoinColumn(name = "comment_id"),
+      inverseJoinColumns = @JoinColumn(name = "user_id"))
+  private ArrayList<Post> upvotedUsers;
 
-    // Comments downvoted by the user
-    @ManyToMany()
-    @JoinTable(name = "downvoted_posts", joinColumns = @JoinColumn(name = "comment_id"), inverseJoinColumns = @JoinColumn(name = "user_id"))
-    private ArrayList<Post> downvotedUsers;
-
+  // Comments downvoted by the user
+  @ManyToMany()
+  @JoinTable(
+      name = "downvoted_posts",
+      joinColumns = @JoinColumn(name = "comment_id"),
+      inverseJoinColumns = @JoinColumn(name = "user_id"))
+  private ArrayList<Post> downvotedUsers;
 }
