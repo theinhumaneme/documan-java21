@@ -1,5 +1,5 @@
 /* Copyright (C)2024 Mudumby Kalyan / @theinhumaneme  */
-package com.kalyan.documan.entitiy;
+package com.kalyan.documan.entity;
 
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
@@ -10,11 +10,11 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "year")
+@Table(name = "department")
 @Getter
 @Setter
 @JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")
-public class Year {
+public class Department {
 
   @Id
   @Column(name = "id")
@@ -22,12 +22,12 @@ public class Year {
   private Integer id;
 
   @NotNull
-  @Column(name = "year", nullable = false)
-  private String year;
+  @Column(name = "department", nullable = false)
+  private String department;
 
-  @OneToMany(mappedBy = "year", fetch = FetchType.LAZY)
-  private ArrayList<Semester> semesters;
-
-  @OneToMany(mappedBy = "year", fetch = FetchType.LAZY)
+  @OneToMany(mappedBy = "department", fetch = FetchType.LAZY)
   private ArrayList<Subject> subjects;
+
+  @OneToMany(mappedBy = "department", fetch = FetchType.LAZY)
+  private ArrayList<User> users;
 }

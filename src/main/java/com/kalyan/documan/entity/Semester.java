@@ -1,20 +1,20 @@
 /* Copyright (C)2024 Mudumby Kalyan / @theinhumaneme  */
-package com.kalyan.documan.entitiy;
+package com.kalyan.documan.entity;
 
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import java.util.List;
+import java.util.ArrayList;
 import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "role")
+@Table(name = "semester")
 @Getter
 @Setter
 @JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")
-public class Role {
+public class Semester {
 
   @Id
   @Column(name = "id")
@@ -22,9 +22,13 @@ public class Role {
   private Integer id;
 
   @NotNull
-  @Column(name = "role", unique = true, nullable = false)
-  private String role = "regular";
+  @Column(name = "semester", nullable = false)
+  private String semester;
 
-  @OneToMany(mappedBy = "role", fetch = FetchType.LAZY)
-  private List<User> users;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "year_id", nullable = false)
+  private Year year;
+
+  @OneToMany(mappedBy = "semester", fetch = FetchType.LAZY)
+  private ArrayList<Subject> subjects;
 }

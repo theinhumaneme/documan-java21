@@ -1,5 +1,5 @@
 /* Copyright (C)2024 Mudumby Kalyan / @theinhumaneme  */
-package com.kalyan.documan.entitiy;
+package com.kalyan.documan.entity;
 
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
