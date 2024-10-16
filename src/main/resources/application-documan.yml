@@ -1,8 +1,26 @@
 spring:
   application:
     name: "documan"
-  profiles:
-    active:
-      "@spring.profiles.active@"
+  jpa:
+    database: postgresql
+    hibernate:
+      ddl-auto: update
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: root
+    password: password
+    driver-class-name: org.postgresql.Driver
 server:
   port: 8080
+  tomcat:
+    accept-count: 200
+    threads:
+      max: 400
+      min-spare: 20
+logging:
+  level:
+    org:
+      springframework:
+        web: debug
+      hibernate: warn
+    web: warn
