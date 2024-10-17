@@ -13,7 +13,10 @@ import lombok.Setter;
 @Entity
 @Table(
     name = "post",
-    indexes = {@Index(name = "idx_post_title", columnList = "title")})
+    indexes = {
+      @Index(name = "idx_post_title", columnList = "title"),
+      @Index(name = "idx_post_user_id", columnList = "user_id")
+    })
 @Getter
 @Setter
 @JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")
@@ -50,27 +53,39 @@ public class Post {
   @OneToMany(mappedBy = "post")
   private ArrayList<Comment> comments;
 
-  // users who have favorited the post
+  // users who have favourited the post
   @ManyToMany()
   @JoinTable(
-      name = "favorite_posts",
+      name = "favourite_posts",
       joinColumns = @JoinColumn(name = "post_id"),
-      inverseJoinColumns = @JoinColumn(name = "user_id"))
-  private ArrayList<User> favoritedUsers;
+      inverseJoinColumns = @JoinColumn(name = "user_id"),
+      indexes = {
+        @Index(name = "idx_favourite_posts_post_id", columnList = "post_id"),
+        @Index(name = "idx_favourite_posts_user_id", columnList = "user_id")
+      })
+  private ArrayList<User> favouritedUsers;
 
   // Posts upvoted by the user
   @ManyToMany()
   @JoinTable(
       name = "upvoted_posts",
       joinColumns = @JoinColumn(name = "post_id"),
-      inverseJoinColumns = @JoinColumn(name = "user_id"))
-  private ArrayList<Post> upvotedUsers;
+      inverseJoinColumns = @JoinColumn(name = "user_id"),
+      indexes = {
+        @Index(name = "idx_upvoted_posts_post_id", columnList = "post_id"),
+        @Index(name = "idx_upvoted_posts_user_id", columnList = "user_id")
+      })
+  private ArrayList<User> upvotedUsers;
 
   // Posts downvoted by the user
   @ManyToMany()
   @JoinTable(
       name = "downvoted_posts",
       joinColumns = @JoinColumn(name = "post_id"),
-      inverseJoinColumns = @JoinColumn(name = "user_id"))
-  private ArrayList<Post> downvotedUsers;
+      inverseJoinColumns = @JoinColumn(name = "user_id"),
+      indexes = {
+        @Index(name = "idx_downvoted_posts_post_id", columnList = "post_id"),
+        @Index(name = "idx_downvoted_posts_user_id", columnList = "user_id")
+      })
+  private ArrayList<User> downvotedUsers;
 }

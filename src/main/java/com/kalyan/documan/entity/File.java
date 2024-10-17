@@ -16,7 +16,8 @@ import lombok.Setter;
     name = "file",
     indexes = {
       @Index(name = "idx_file_name", columnList = "name"),
-      @Index(name = "idx_file_uuid", columnList = "uuid", unique = true)
+      @Index(name = "idx_file_uuid", columnList = "uuid", unique = true),
+      @Index(name = "idx_file_subject_id", columnList = "subject_id")
     })
 @Getter
 @Setter
@@ -54,8 +55,12 @@ public class File {
 
   @ManyToMany()
   @JoinTable(
-      name = "favorite_files",
+      name = "favourite_files",
       joinColumns = @JoinColumn(name = "file_id"),
-      inverseJoinColumns = @JoinColumn(name = "user_id"))
-  private ArrayList<User> favoritedUsers;
+      inverseJoinColumns = @JoinColumn(name = "user_id"),
+      indexes = {
+        @Index(name = "idx_favourite_files_file_id", columnList = "file_id"),
+        @Index(name = "idx_favourite_files_user_id", columnList = "user_id")
+      })
+  private ArrayList<User> favouritedUsers;
 }

@@ -10,7 +10,14 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "subject", indexes = @Index(name = "idx_subject_code", columnList = "code"))
+@Table(
+    name = "subject",
+    indexes = {
+      @Index(name = "idx_subject_code", columnList = "code"),
+      @Index(name = "idx_subject_department_id  ", columnList = "department_id"),
+      @Index(name = "idx_subject_year_id", columnList = "year_id"),
+      @Index(name = "idx_subject_semester_id", columnList = "semester_id")
+    })
 @Getter
 @Setter
 @JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")
@@ -48,10 +55,6 @@ public class Subject {
   @JoinColumn(name = "semester_id", nullable = false)
   @ManyToOne(fetch = FetchType.LAZY)
   private Semester semester;
-
-  @JoinColumn(name = "role_id", nullable = false)
-  @ManyToOne(fetch = FetchType.LAZY)
-  private Role role;
 
   @OneToMany(mappedBy = "subject", fetch = FetchType.LAZY)
   private ArrayList<File> files;

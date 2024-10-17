@@ -15,7 +15,11 @@ import lombok.Setter;
     name = "documan_user",
     indexes = {
       @Index(name = "idx_user_username", columnList = "username", unique = true),
-      @Index(name = "idx_user_email", columnList = "email", unique = true)
+      @Index(name = "idx_user_email", columnList = "email", unique = true),
+      @Index(name = "idx_user_department_id  ", columnList = "department_id"),
+      @Index(name = "idx_user_year_id", columnList = "year_id"),
+      @Index(name = "idx_user_semester_id", columnList = "semester_id"),
+      @Index(name = "idx_user_role_id", columnList = "role_id")
     })
 @Getter
 @Setter
@@ -92,28 +96,28 @@ public class User {
   @OneToMany(fetch = FetchType.LAZY, mappedBy = "user")
   private ArrayList<Comment> comments;
 
-  // Subjects favorite by the user
-  @ManyToMany()
-  @JoinTable(
-      name = "favorite_subjects",
-      joinColumns = @JoinColumn(name = "user_id"),
-      inverseJoinColumns = @JoinColumn(name = "subject_id"))
-  private ArrayList<Subject> favoriteSubjects;
-
   // Files favorite by the user
   @ManyToMany()
   @JoinTable(
-      name = "favorite_files",
+      name = "favourite_files",
       joinColumns = @JoinColumn(name = "user_id"),
-      inverseJoinColumns = @JoinColumn(name = "file_id"))
-  private ArrayList<Post> favoriteFiles;
+      inverseJoinColumns = @JoinColumn(name = "file_id"),
+      indexes = {
+        @Index(name = "idx_favourite_files_user_id", columnList = "user_id"),
+        @Index(name = "idx_favourite_files_file_id", columnList = "file_id")
+      })
+  private ArrayList<File> favouriteFiles;
 
   // Posts favorite by the user
   @ManyToMany()
   @JoinTable(
-      name = "favorite_posts",
+      name = "favourite_posts",
       joinColumns = @JoinColumn(name = "user_id"),
-      inverseJoinColumns = @JoinColumn(name = "post_id"))
+      inverseJoinColumns = @JoinColumn(name = "post_id"),
+      indexes = {
+        @Index(name = "idx_favourite_posts_user_id", columnList = "user_id"),
+        @Index(name = "idx_favourite_posts_post_id", columnList = "post_id")
+      })
   private ArrayList<Post> favoritePosts;
 
   // Posts upvoted by the user
@@ -121,7 +125,11 @@ public class User {
   @JoinTable(
       name = "upvoted_posts",
       joinColumns = @JoinColumn(name = "user_id"),
-      inverseJoinColumns = @JoinColumn(name = "post_id"))
+      inverseJoinColumns = @JoinColumn(name = "post_id"),
+      indexes = {
+        @Index(name = "idx_upvoted_posts_user_id", columnList = "user_id"),
+        @Index(name = "idx_upvoted_posts_post_id", columnList = "post_id")
+      })
   private ArrayList<Post> upvotedPosts;
 
   // Posts downvoted by the user
@@ -129,15 +137,23 @@ public class User {
   @JoinTable(
       name = "downvoted_posts",
       joinColumns = @JoinColumn(name = "user_id"),
-      inverseJoinColumns = @JoinColumn(name = "post_id"))
-  private ArrayList<Post> downvotedPost;
+      inverseJoinColumns = @JoinColumn(name = "post_id"),
+      indexes = {
+        @Index(name = "idx_downvoted_posts_user_id", columnList = "user_id"),
+        @Index(name = "idx_downvoted_posts_post_id", columnList = "post_id")
+      })
+  private ArrayList<Post> downvotedPosts;
 
   // Comments upvoted by the user
   @ManyToMany()
   @JoinTable(
       name = "upvoted_comments",
       joinColumns = @JoinColumn(name = "user_id"),
-      inverseJoinColumns = @JoinColumn(name = "comment_id"))
+      inverseJoinColumns = @JoinColumn(name = "comment_id"),
+      indexes = {
+        @Index(name = "idx_upvoted_comments_user_id", columnList = "user_id"),
+        @Index(name = "idx_upvoted_comments_comment_id", columnList = "comment_id")
+      })
   private ArrayList<Comment> upvotedComments;
 
   // Comments downvoted by the user
@@ -145,6 +161,10 @@ public class User {
   @JoinTable(
       name = "downvoted_comments",
       joinColumns = @JoinColumn(name = "user_id"),
-      inverseJoinColumns = @JoinColumn(name = "comment_id"))
+      inverseJoinColumns = @JoinColumn(name = "comment_id"),
+      indexes = {
+        @Index(name = "idx_downvoted_comments_user_id", columnList = "user_id"),
+        @Index(name = "idx_downvoted_comments_comment_id", columnList = "comment_id")
+      })
   private ArrayList<Comment> downvotedComments;
 }

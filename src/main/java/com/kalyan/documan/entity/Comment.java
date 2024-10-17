@@ -13,7 +13,11 @@ import lombok.Setter;
 @Entity
 @Table(
     name = "comment",
-    indexes = {@Index(name = "idx_comment_title", columnList = "title")})
+    indexes = {
+      @Index(name = "idx_comment_title", columnList = "title"),
+      @Index(name = "idx_comment_post_id", columnList = "post_id"),
+      @Index(name = "idx_comment_user_id  ", columnList = "user_id")
+    })
 @Getter
 @Setter
 @JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")
@@ -54,16 +58,24 @@ public class Comment {
   // Comments upvoted by the user
   @ManyToMany()
   @JoinTable(
-      name = "upvoted_posts",
+      name = "upvoted_comments",
       joinColumns = @JoinColumn(name = "comment_id"),
-      inverseJoinColumns = @JoinColumn(name = "user_id"))
-  private ArrayList<Post> upvotedUsers;
+      inverseJoinColumns = @JoinColumn(name = "user_id"),
+      indexes = {
+        @Index(name = "idx_upvoted_comments_comment_id", columnList = "comment_id"),
+        @Index(name = "idx_upvoted_comments_user_id", columnList = "user_id")
+      })
+  private ArrayList<User> upvotedUsers;
 
   // Comments downvoted by the user
   @ManyToMany()
   @JoinTable(
-      name = "downvoted_posts",
+      name = "downvoted_comments",
       joinColumns = @JoinColumn(name = "comment_id"),
-      inverseJoinColumns = @JoinColumn(name = "user_id"))
-  private ArrayList<Post> downvotedUsers;
+      inverseJoinColumns = @JoinColumn(name = "user_id"),
+      indexes = {
+        @Index(name = "idx_downvoted_comments_comment_id", columnList = "comment_id"),
+        @Index(name = "idx_downvoted_comments_user_id", columnList = "user_id")
+      })
+  private ArrayList<User> downvotedUsers;
 }

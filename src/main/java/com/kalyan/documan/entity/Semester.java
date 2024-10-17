@@ -12,7 +12,10 @@ import lombok.Setter;
 @Entity
 @Table(
     name = "semester",
-    indexes = {@Index(name = "idx_semester_name", columnList = "name", unique = true)})
+    indexes = {
+      @Index(name = "idx_semester_name", columnList = "name", unique = true),
+      @Index(name = "idx_semester_year_id", columnList = "year_id")
+    })
 @Getter
 @Setter
 @JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")
