@@ -10,7 +10,9 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "role")
+@Table(
+    name = "role",
+    indexes = {@Index(name = "idx_role_name", columnList = "name", unique = true)})
 @Getter
 @Setter
 @JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")
@@ -22,8 +24,8 @@ public class Role {
   private Integer id;
 
   @NotNull
-  @Column(name = "role", unique = true, nullable = false)
-  private String role = "regular";
+  @Column(name = "name", unique = true, nullable = false)
+  private String name = "regular";
 
   @OneToMany(mappedBy = "role", fetch = FetchType.LAZY)
   private List<User> users;

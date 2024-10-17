@@ -12,7 +12,12 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "file")
+@Table(
+    name = "file",
+    indexes = {
+      @Index(name = "idx_file_name", columnList = "name"),
+      @Index(name = "idx_file_uuid", columnList = "uuid", unique = true)
+    })
 @Getter
 @Setter
 @JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")

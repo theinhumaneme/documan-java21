@@ -11,7 +11,12 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "documan_user")
+@Table(
+    name = "documan_user",
+    indexes = {
+      @Index(name = "idx_user_username", columnList = "username", unique = true),
+      @Index(name = "idx_user_email", columnList = "email", unique = true)
+    })
 @Getter
 @Setter
 @JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")

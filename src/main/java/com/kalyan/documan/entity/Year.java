@@ -10,7 +10,9 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "year")
+@Table(
+    name = "year",
+    indexes = {@Index(name = "idx_year_name", columnList = "year", unique = true)})
 @Getter
 @Setter
 @JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")
@@ -22,7 +24,7 @@ public class Year {
   private Integer id;
 
   @NotNull
-  @Column(name = "year", nullable = false)
+  @Column(name = "year", nullable = false, unique = true)
   private String year;
 
   @OneToMany(mappedBy = "year", fetch = FetchType.LAZY)
