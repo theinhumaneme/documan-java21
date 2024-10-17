@@ -60,7 +60,11 @@
 			<artifactId>lombok</artifactId>
 			<optional>true</optional>
 		</dependency>
-	</dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+    </dependencies>
 	<dependencyManagement>
 		<dependencies>
 			<dependency>
@@ -106,6 +110,7 @@
 			<plugin>
 				<groupId>com.diffplug.spotless</groupId>
 				<artifactId>spotless-maven-plugin</artifactId>
+				<version>2.43.0</version>
 				<configuration>
 					<java>
 						<googleJavaFormat>
@@ -113,7 +118,12 @@
 						</googleJavaFormat>
 						<licenseHeader>
 							<content>
-								/* Copyright (C)$YEAR Mudumby Kalyan / @theinhumaneme  */
+// MIT License
+//
+// Copyright (C) $YEAR Kalyan Mudumby / @theinhumaneme
+//
+// Permission is granted to use, copy, modify, merge, publish, distribute,
+// sublicense, and/or sell copies of the software.
 							</content>
 						</licenseHeader>
 					</java>
