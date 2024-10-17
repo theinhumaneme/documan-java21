@@ -25,7 +25,7 @@ public class Year {
 
   @NotNull
   @Column(name = "year", nullable = false, unique = true)
-  private String year;
+  private String value;
 
   @OneToMany(mappedBy = "year", fetch = FetchType.LAZY)
   private ArrayList<Semester> semesters;
