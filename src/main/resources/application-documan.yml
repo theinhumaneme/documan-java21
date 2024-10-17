@@ -5,6 +5,7 @@ spring:
     database: postgresql
     hibernate:
       ddl-auto: update
+    show-sql: true # remove in staging and production profiles
   datasource:
     url: jdbc:postgresql://localhost:5432/postgres
     username: root
@@ -21,10 +22,13 @@ server:
     enabled: true
     mime-types: application/json
     min-response-size: 1024
+  error:
+    whitelabel:
+      enabled: off
 logging:
   level:
     org:
       springframework:
-        web: debug
-      hibernate: warn
-    web: warn
+        web: debug # set to error in staging and production profiles
+      hibernate: warn # set to error in staging and production profiles
+    web: warn # set to error in staging and production profiles
