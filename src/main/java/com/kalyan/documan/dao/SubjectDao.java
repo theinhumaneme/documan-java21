@@ -15,7 +15,8 @@ import org.springframework.data.repository.query.Param;
 public interface SubjectDao extends JpaRepository<Subject, Integer> {
 
   @Query(
-      value ="selct * from subject s where s.department_id =: departmentId and s.year_id =: yearId and s.semester_id =: semseterId",
+      value =
+          "select * from subject s where s.department_id =: departmentId and s.year_id =: yearId and s.semester_id =: semseterId",
       nativeQuery = true)
   public List<Subject> getUserSubjects(
       @Param("departmentId") Integer departmentId,

@@ -26,6 +26,18 @@ public class UserService {
     this.subjectDao = subjectDao;
   }
 
+  public Optional<User> findById(Integer userId) {
+    return userDao.findById(userId);
+  }
+
+  public Optional<User> findByUsername(String username) {
+    return Optional.ofNullable(userDao.findByUsername(username));
+  }
+
+  public Optional<User> findByEmail(String email) {
+    return Optional.ofNullable(userDao.findByEmail(email));
+  }
+
   public Optional<List<Post>> getUserPosts(Integer userId) {
     Optional<User> user = userDao.findById(userId);
     return user.map(User::getPosts);
