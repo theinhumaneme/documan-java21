@@ -36,3 +36,4 @@ Dockerfile
 README.md
 .gitattributes
 .dockerignore
+persist

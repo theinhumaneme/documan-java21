@@ -28,3 +28,4 @@ logs/
 .settings/
 .mvn/
 *.iml
+persist
