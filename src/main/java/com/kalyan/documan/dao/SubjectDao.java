@@ -15,10 +15,10 @@ import org.springframework.data.repository.query.Param;
 public interface SubjectDao extends JpaRepository<Subject, Integer> {
 
   @Query(
-      value ="SELECT * FROM subject s where s.department_id =: departmentId and s.year_id =: yearId and s.semester_id =: semseterId",
+      value ="selct * from subject s where s.department_id =: departmentId and s.year_id =: yearId and s.semester_id =: semseterId",
       nativeQuery = true)
   public List<Subject> getUserSubjects(
-      @Param("departmentId") Integer department_id,
-      @Param("yearId") Integer year_id,
-      @Param("semesterId") Integer semester_id);
+      @Param("departmentId") Integer departmentId,
+      @Param("yearId") Integer yearId,
+      @Param("semesterId") Integer semesterId);
 }
