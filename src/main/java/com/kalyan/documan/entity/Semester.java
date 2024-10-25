@@ -17,10 +17,7 @@ import lombok.Setter;
 @Entity
 @Table(
     name = "semester",
-    indexes = {
-      @Index(name = "idx_semester_name", columnList = "name", unique = true),
-      @Index(name = "idx_semester_year_id", columnList = "year_id")
-    })
+    indexes = {@Index(name = "idx_semester_name", columnList = "name", unique = true)})
 @Getter
 @Setter
 @JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")
@@ -34,10 +31,6 @@ public class Semester {
   @NotNull
   @Column(name = "name", nullable = false, unique = true)
   private String name;
-
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "year_id", nullable = false)
-  private Year year;
 
   @OneToMany(mappedBy = "semester", fetch = FetchType.LAZY)
   private ArrayList<Subject> subjects;

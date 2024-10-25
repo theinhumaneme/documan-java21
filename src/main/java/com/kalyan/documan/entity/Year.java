@@ -33,8 +33,5 @@ public class Year {
   private String value;
 
   @OneToMany(mappedBy = "year", fetch = FetchType.LAZY)
-  private ArrayList<Semester> semesters;
-
-  @OneToMany(mappedBy = "year", fetch = FetchType.LAZY)
   private ArrayList<Subject> subjects;
 }
