@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:17
-    container_name: documanDatabase
+    container_name: postgres
     environment:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: password
