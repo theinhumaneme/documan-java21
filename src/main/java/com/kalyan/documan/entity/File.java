@@ -43,15 +43,19 @@ public class File {
   private Long size;
 
   @NotNull
-  @Column(name = "uuid", unique = true, columnDefinition = "UUID", nullable = false)
+  @Column(
+      name = "uuid",
+      unique = true,
+      nullable = false,
+      columnDefinition = "UUID DEFAULT gen_random_uuid()")
   private UUID uuid = UUID.randomUUID();
 
   @NotNull
-  @Column(name = "date_created", nullable = false)
+  @Column(name = "date_created", nullable = false, columnDefinition = "TIMESTAMP DEFAULT NOW()")
   private Date dateCreated;
 
   @NotNull
-  @Column(name = "date_modified", nullable = false)
+  @Column(name = "date_modified", nullable = false, columnDefinition = "TIMESTAMP DEFAULT NOW()")
   private Date dateModified;
 
   @JoinColumn(name = "subject_id", nullable = false)

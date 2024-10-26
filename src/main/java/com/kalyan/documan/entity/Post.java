@@ -32,23 +32,23 @@ public class Post {
   private Integer id;
 
   @NotNull
-  @Column(name = "title", columnDefinition = "TEXT", nullable = false)
+  @Column(name = "title", nullable = false, columnDefinition = "TEXT")
   private String title;
 
   @NotNull
-  @Column(name = "description", nullable = false)
+  @Column(name = "description", nullable = false, columnDefinition = "TEXT")
   private String description;
 
   @NotNull
-  @Column(name = "content", columnDefinition = "TEXT", nullable = false)
+  @Column(name = "content", nullable = false, columnDefinition = "TEXT")
   private String content;
 
   @NotNull
-  @Column(name = "date_created", nullable = false)
+  @Column(name = "date_created", nullable = false, columnDefinition = "TIMESTAMP DEFAULT NOW()")
   private Date dateCreated;
 
   @NotNull
-  @Column(name = "date_modified", nullable = false)
+  @Column(name = "date_modified", nullable = false, columnDefinition = "TIMESTAMP DEFAULT NOW()")
   private Date dateModified;
 
   @JoinColumn(name = "user_id", nullable = false)

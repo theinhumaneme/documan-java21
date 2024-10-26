@@ -56,27 +56,30 @@ public class User {
   private String email;
 
   @NotNull
-  @Column(name = "terms_of_service", nullable = false)
-  private boolean accptedTermsOfService = false;
+  @Column(name = "terms_of_service", nullable = false, columnDefinition = "boolean DEFAULT false")
+  private boolean acceptedTermsOfService;
 
   @NotNull
-  @Column(name = "isVerified", nullable = false)
-  private boolean isVerified = false;
+  @Column(name = "isVerified", nullable = false, columnDefinition = "boolean DEFAULT false")
+  private boolean isVerified;
 
   @NotNull
-  @Column(name = "can_post", nullable = false)
-  private boolean canPost = false;
+  @Column(name = "can_post", nullable = false, columnDefinition = "boolean DEFAULT false")
+  private boolean canPost;
 
   @NotNull
-  @Column(name = "can_comment", nullable = false)
-  private boolean canComment = false;
+  @Column(name = "can_comment", nullable = false, columnDefinition = "boolean DEFAULT false")
+  private boolean canComment;
 
   @NotNull
-  @Column(name = "date_created", nullable = false)
+  @Column(name = "date_created", nullable = false, columnDefinition = "TIMESTAMP DEFAULT NOW()")
   private Date dateCreated;
 
   @NotNull
-  @Column(name = "date_last_interacted", nullable = false)
+  @Column(
+      name = "date_last_interacted",
+      nullable = false,
+      columnDefinition = "TIMESTAMP DEFAULT NOW()")
   private Date dateLastInteracted;
 
   @JoinColumn(name = "role_id", nullable = false)
