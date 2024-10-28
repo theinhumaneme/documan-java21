@@ -15,6 +15,8 @@ import java.sql.Date;
 import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 @Entity
 @Table(
@@ -74,10 +76,12 @@ public class User {
 
   @NotNull
   @Column(name = "date_created", nullable = false)
+  @CreationTimestamp
   private Date dateCreated;
 
   @NotNull
   @Column(name = "date_last_interacted", nullable = false)
+  @UpdateTimestamp
   private Date dateLastInteracted;
 
   @JoinColumn(name = "role_id", nullable = false)

@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 @Entity
 @Table(
@@ -53,10 +55,12 @@ public class File {
 
   @NotNull
   @Column(name = "date_created", nullable = false)
+  @CreationTimestamp
   private Date dateCreated;
 
   @NotNull
   @Column(name = "date_modified", nullable = false)
+  @UpdateTimestamp
   private Date dateModified;
 
   @JsonIgnore

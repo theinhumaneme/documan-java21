@@ -15,6 +15,8 @@ import java.sql.Date;
 import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 @Entity
 @Table(
@@ -47,10 +49,12 @@ public class Comment {
 
   @NotNull
   @Column(name = "date_created", nullable = false)
+  @CreationTimestamp
   private Date dateCreated;
 
   @NotNull
   @Column(name = "date_modified", nullable = false)
+  @UpdateTimestamp
   private Date dateModified;
 
   @JsonIgnore
