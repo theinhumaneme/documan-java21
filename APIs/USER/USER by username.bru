@@ -1,0 +1,15 @@
+meta {
+  name: USER by username
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{host}}/api/v1/user/username?username=theinhumaneme
+  body: none
+  auth: none
+}
+
+params:query {
+  username: theinhumaneme
+}
