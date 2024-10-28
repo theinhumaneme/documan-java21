@@ -7,6 +7,7 @@
 package com.kalyan.documan.entity;
 
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -50,17 +51,18 @@ public class Subject {
   private String code;
 
   @JoinColumn(name = "department_id", nullable = false)
-  @ManyToOne(fetch = FetchType.LAZY)
+  @ManyToOne(fetch = FetchType.EAGER)
   private Department department;
 
   @JoinColumn(name = "year_id", nullable = false)
-  @ManyToOne(fetch = FetchType.LAZY)
+  @ManyToOne(fetch = FetchType.EAGER)
   private Year year;
 
   @JoinColumn(name = "semester_id", nullable = false)
-  @ManyToOne(fetch = FetchType.LAZY)
+  @ManyToOne(fetch = FetchType.EAGER)
   private Semester semester;
 
+  @JsonIgnore
   @OneToMany(mappedBy = "subject", fetch = FetchType.LAZY)
   private List<File> files;
 }

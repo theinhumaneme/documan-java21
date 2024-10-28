@@ -7,6 +7,7 @@
 package com.kalyan.documan.entity;
 
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -51,14 +52,17 @@ public class Post {
   @Column(name = "date_modified", nullable = false)
   private Date dateModified;
 
+  @JsonIgnore
   @JoinColumn(name = "user_id", nullable = false)
   @ManyToOne(fetch = FetchType.LAZY)
   private User user;
 
-  @OneToMany(mappedBy = "post")
+  @JsonIgnore
+  @OneToMany(mappedBy = "post", fetch = FetchType.EAGER)
   private List<Comment> comments;
 
   // users who have favourited the post
+  @JsonIgnore
   @ManyToMany()
   @JoinTable(
       name = "favourite_posts",
@@ -71,6 +75,7 @@ public class Post {
   private List<User> favouritedUsers;
 
   // Posts upvoted by the user
+  @JsonIgnore
   @ManyToMany()
   @JoinTable(
       name = "upvoted_posts",
@@ -83,6 +88,7 @@ public class Post {
   private List<User> upvotedUsers;
 
   // Posts downvoted by the user
+  @JsonIgnore
   @ManyToMany()
   @JoinTable(
       name = "downvoted_posts",

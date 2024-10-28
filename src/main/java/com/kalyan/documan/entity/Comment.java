@@ -7,6 +7,7 @@
 package com.kalyan.documan.entity;
 
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -52,15 +53,18 @@ public class Comment {
   @Column(name = "date_modified", nullable = false)
   private Date dateModified;
 
+  @JsonIgnore
   @JoinColumn(name = "post_id", nullable = false)
   @ManyToOne(fetch = FetchType.LAZY)
   private Post post;
 
+  @JsonIgnore
   @JoinColumn(name = "user_id", nullable = false)
-  @ManyToOne(fetch = FetchType.LAZY)
+  @ManyToOne(fetch = FetchType.EAGER)
   private User user;
 
   // Comments upvoted by the user
+  @JsonIgnore
   @ManyToMany()
   @JoinTable(
       name = "upvoted_comments",
@@ -73,6 +77,7 @@ public class Comment {
   private List<User> upvotedUsers;
 
   // Comments downvoted by the user
+  @JsonIgnore
   @ManyToMany()
   @JoinTable(
       name = "downvoted_comments",

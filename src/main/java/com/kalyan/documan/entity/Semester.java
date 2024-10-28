@@ -7,6 +7,7 @@
 package com.kalyan.documan.entity;
 
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -32,6 +33,7 @@ public class Semester {
   @Column(name = "name", nullable = false, unique = true)
   private String name;
 
+  @JsonIgnore
   @OneToMany(mappedBy = "semester", fetch = FetchType.LAZY)
   private List<Subject> subjects;
 }

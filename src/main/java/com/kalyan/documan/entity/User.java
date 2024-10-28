@@ -7,6 +7,7 @@
 package com.kalyan.documan.entity;
 
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -80,28 +81,31 @@ public class User {
   private Date dateLastInteracted;
 
   @JoinColumn(name = "role_id", nullable = false)
-  @ManyToOne(fetch = FetchType.LAZY)
+  @ManyToOne(fetch = FetchType.EAGER)
   private Role role;
 
   @JoinColumn(name = "department_id", nullable = false)
-  @ManyToOne(fetch = FetchType.LAZY)
+  @ManyToOne(fetch = FetchType.EAGER)
   private Department department;
 
   @JoinColumn(name = "year_id", nullable = false)
-  @ManyToOne(fetch = FetchType.LAZY)
+  @ManyToOne(fetch = FetchType.EAGER)
   private Year year;
 
   @JoinColumn(name = "semester_id", nullable = false)
-  @ManyToOne(fetch = FetchType.LAZY)
+  @ManyToOne(fetch = FetchType.EAGER)
   private Semester semester;
 
+  @JsonIgnore
   @OneToMany(fetch = FetchType.LAZY, mappedBy = "user")
   private List<Post> posts;
 
+  @JsonIgnore
   @OneToMany(fetch = FetchType.LAZY, mappedBy = "user")
   private List<Comment> comments;
 
   // Files favorite by the user
+  @JsonIgnore
   @ManyToMany()
   @JoinTable(
       name = "favourite_files",
@@ -114,6 +118,7 @@ public class User {
   private List<File> favouriteFiles;
 
   // Posts favorite by the user
+  @JsonIgnore
   @ManyToMany()
   @JoinTable(
       name = "favourite_posts",
@@ -126,6 +131,7 @@ public class User {
   private List<Post> favoritePosts;
 
   // Posts upvoted by the user
+  @JsonIgnore
   @ManyToMany()
   @JoinTable(
       name = "upvoted_posts",
@@ -138,6 +144,7 @@ public class User {
   private List<Post> upvotedPosts;
 
   // Posts downvoted by the user
+  @JsonIgnore
   @ManyToMany()
   @JoinTable(
       name = "downvoted_posts",
@@ -150,6 +157,7 @@ public class User {
   private List<Post> downvotedPosts;
 
   // Comments upvoted by the user
+  @JsonIgnore
   @ManyToMany()
   @JoinTable(
       name = "upvoted_comments",
@@ -162,6 +170,7 @@ public class User {
   private List<Comment> upvotedComments;
 
   // Comments downvoted by the user
+  @JsonIgnore
   @ManyToMany()
   @JoinTable(
       name = "downvoted_comments",

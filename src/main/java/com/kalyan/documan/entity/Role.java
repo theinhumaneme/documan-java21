@@ -7,6 +7,7 @@
 package com.kalyan.documan.entity;
 
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -32,6 +33,7 @@ public class Role {
   @Column(name = "name", unique = true, nullable = false)
   private String name = "regular";
 
+  @JsonIgnore
   @OneToMany(mappedBy = "role", fetch = FetchType.LAZY)
   private List<User> users;
 }

@@ -7,6 +7,7 @@
 package com.kalyan.documan.entity;
 
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -32,6 +33,7 @@ public class Year {
   @Column(name = "year", nullable = false, unique = true)
   private String value;
 
+  @JsonIgnore
   @OneToMany(mappedBy = "year", fetch = FetchType.LAZY)
   private List<Subject> subjects;
 }

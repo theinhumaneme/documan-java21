@@ -7,6 +7,7 @@
 package com.kalyan.documan.entity;
 
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -58,10 +59,12 @@ public class File {
   @Column(name = "date_modified", nullable = false)
   private Date dateModified;
 
+  @JsonIgnore
   @JoinColumn(name = "subject_id", nullable = false)
   @ManyToOne(fetch = FetchType.LAZY)
   private Subject subject;
 
+  @JsonIgnore
   @ManyToMany()
   @JoinTable(
       name = "favourite_files",
