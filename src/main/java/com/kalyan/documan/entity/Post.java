@@ -11,7 +11,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import java.sql.Date;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
@@ -49,12 +49,12 @@ public class Post {
   @NotNull
   @Column(name = "date_created", nullable = false)
   @CreationTimestamp
-  private Date dateCreated;
+  private LocalDateTime dateCreated;
 
   @NotNull
   @Column(name = "date_modified", nullable = false)
   @UpdateTimestamp
-  private Date dateModified;
+  private LocalDateTime dateModified;
 
   @JsonIgnore
   @JoinColumn(name = "user_id", nullable = false)
