@@ -51,11 +51,11 @@ public class File {
   private UUID uuid = UUID.randomUUID();
 
   @NotNull
-  @Column(name = "date_created", nullable = false, columnDefinition = "TIMESTAMP DEFAULT NOW()")
+  @Column(name = "date_created", nullable = false)
   private Date dateCreated;
 
   @NotNull
-  @Column(name = "date_modified", nullable = false, columnDefinition = "TIMESTAMP DEFAULT NOW()")
+  @Column(name = "date_modified", nullable = false)
   private Date dateModified;
 
   @JoinColumn(name = "subject_id", nullable = false)

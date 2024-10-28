@@ -45,11 +45,11 @@ public class Comment {
   private String content;
 
   @NotNull
-  @Column(name = "date_created", nullable = false, columnDefinition = "TIMESTAMP DEFAULT NOW()")
+  @Column(name = "date_created", nullable = false)
   private Date dateCreated;
 
   @NotNull
-  @Column(name = "date_modified", nullable = false, columnDefinition = "TIMESTAMP DEFAULT NOW()")
+  @Column(name = "date_modified", nullable = false)
   private Date dateModified;
 
   @JoinColumn(name = "post_id", nullable = false)

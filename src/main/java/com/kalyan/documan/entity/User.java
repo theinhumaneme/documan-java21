@@ -72,14 +72,11 @@ public class User {
   private boolean canComment;
 
   @NotNull
-  @Column(name = "date_created", nullable = false, columnDefinition = "TIMESTAMP DEFAULT NOW()")
+  @Column(name = "date_created", nullable = false)
   private Date dateCreated;
 
   @NotNull
-  @Column(
-      name = "date_last_interacted",
-      nullable = false,
-      columnDefinition = "TIMESTAMP DEFAULT NOW()")
+  @Column(name = "date_last_interacted", nullable = false)
   private Date dateLastInteracted;
 
   @JoinColumn(name = "role_id", nullable = false)
