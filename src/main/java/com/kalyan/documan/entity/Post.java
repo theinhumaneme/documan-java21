@@ -11,7 +11,7 @@ import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import java.sql.Date;
-import java.util.ArrayList;
+import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -56,7 +56,7 @@ public class Post {
   private User user;
 
   @OneToMany(mappedBy = "post")
-  private ArrayList<Comment> comments;
+  private List<Comment> comments;
 
   // users who have favourited the post
   @ManyToMany()
@@ -68,7 +68,7 @@ public class Post {
         @Index(name = "idx_favourite_posts_post_id", columnList = "post_id"),
         @Index(name = "idx_favourite_posts_user_id", columnList = "user_id")
       })
-  private ArrayList<User> favouritedUsers;
+  private List<User> favouritedUsers;
 
   // Posts upvoted by the user
   @ManyToMany()
@@ -80,7 +80,7 @@ public class Post {
         @Index(name = "idx_upvoted_posts_post_id", columnList = "post_id"),
         @Index(name = "idx_upvoted_posts_user_id", columnList = "user_id")
       })
-  private ArrayList<User> upvotedUsers;
+  private List<User> upvotedUsers;
 
   // Posts downvoted by the user
   @ManyToMany()
@@ -92,5 +92,5 @@ public class Post {
         @Index(name = "idx_downvoted_posts_post_id", columnList = "post_id"),
         @Index(name = "idx_downvoted_posts_user_id", columnList = "user_id")
       })
-  private ArrayList<User> downvotedUsers;
+  private List<User> downvotedUsers;
 }

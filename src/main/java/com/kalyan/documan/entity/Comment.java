@@ -11,7 +11,7 @@ import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import java.sql.Date;
-import java.util.ArrayList;
+import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -70,7 +70,7 @@ public class Comment {
         @Index(name = "idx_upvoted_comments_comment_id", columnList = "comment_id"),
         @Index(name = "idx_upvoted_comments_user_id", columnList = "user_id")
       })
-  private ArrayList<User> upvotedUsers;
+  private List<User> upvotedUsers;
 
   // Comments downvoted by the user
   @ManyToMany()
@@ -82,5 +82,5 @@ public class Comment {
         @Index(name = "idx_downvoted_comments_comment_id", columnList = "comment_id"),
         @Index(name = "idx_downvoted_comments_user_id", columnList = "user_id")
       })
-  private ArrayList<User> downvotedUsers;
+  private List<User> downvotedUsers;
 }

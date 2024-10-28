@@ -11,7 +11,7 @@ import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import java.sql.Date;
-import java.util.ArrayList;
+import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -99,10 +99,10 @@ public class User {
   private Semester semester;
 
   @OneToMany(fetch = FetchType.LAZY, mappedBy = "user")
-  private ArrayList<Post> posts;
+  private List<Post> posts;
 
   @OneToMany(fetch = FetchType.LAZY, mappedBy = "user")
-  private ArrayList<Comment> comments;
+  private List<Comment> comments;
 
   // Files favorite by the user
   @ManyToMany()
@@ -114,7 +114,7 @@ public class User {
         @Index(name = "idx_favourite_files_user_id", columnList = "user_id"),
         @Index(name = "idx_favourite_files_file_id", columnList = "file_id")
       })
-  private ArrayList<File> favouriteFiles;
+  private List<File> favouriteFiles;
 
   // Posts favorite by the user
   @ManyToMany()
@@ -126,7 +126,7 @@ public class User {
         @Index(name = "idx_favourite_posts_user_id", columnList = "user_id"),
         @Index(name = "idx_favourite_posts_post_id", columnList = "post_id")
       })
-  private ArrayList<Post> favoritePosts;
+  private List<Post> favoritePosts;
 
   // Posts upvoted by the user
   @ManyToMany()
@@ -138,7 +138,7 @@ public class User {
         @Index(name = "idx_upvoted_posts_user_id", columnList = "user_id"),
         @Index(name = "idx_upvoted_posts_post_id", columnList = "post_id")
       })
-  private ArrayList<Post> upvotedPosts;
+  private List<Post> upvotedPosts;
 
   // Posts downvoted by the user
   @ManyToMany()
@@ -150,7 +150,7 @@ public class User {
         @Index(name = "idx_downvoted_posts_user_id", columnList = "user_id"),
         @Index(name = "idx_downvoted_posts_post_id", columnList = "post_id")
       })
-  private ArrayList<Post> downvotedPosts;
+  private List<Post> downvotedPosts;
 
   // Comments upvoted by the user
   @ManyToMany()
@@ -162,7 +162,7 @@ public class User {
         @Index(name = "idx_upvoted_comments_user_id", columnList = "user_id"),
         @Index(name = "idx_upvoted_comments_comment_id", columnList = "comment_id")
       })
-  private ArrayList<Comment> upvotedComments;
+  private List<Comment> upvotedComments;
 
   // Comments downvoted by the user
   @ManyToMany()
@@ -174,5 +174,5 @@ public class User {
         @Index(name = "idx_downvoted_comments_user_id", columnList = "user_id"),
         @Index(name = "idx_downvoted_comments_comment_id", columnList = "comment_id")
       })
-  private ArrayList<Comment> downvotedComments;
+  private List<Comment> downvotedComments;
 }

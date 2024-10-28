@@ -11,7 +11,7 @@ import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import java.sql.Date;
-import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
@@ -71,5 +71,5 @@ public class File {
         @Index(name = "idx_favourite_files_file_id", columnList = "file_id"),
         @Index(name = "idx_favourite_files_user_id", columnList = "user_id")
       })
-  private ArrayList<User> favouritedUsers;
+  private List<User> favouritedUsers;
 }

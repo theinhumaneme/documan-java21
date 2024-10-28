@@ -10,7 +10,7 @@ import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import java.util.ArrayList;
+import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -62,5 +62,5 @@ public class Subject {
   private Semester semester;
 
   @OneToMany(mappedBy = "subject", fetch = FetchType.LAZY)
-  private ArrayList<File> files;
+  private List<File> files;
 }
