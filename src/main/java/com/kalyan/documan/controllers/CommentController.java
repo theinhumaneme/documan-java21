@@ -6,6 +6,7 @@
 // sublicense, and/or sell copies of the software.
 package com.kalyan.documan.controllers;
 
+import com.kalyan.documan.service.CommentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -15,15 +16,33 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 public class CommentController {
   private static final Logger logger = LoggerFactory.getLogger(CommentController.class);
+  private final CommentService commentService;
+
+  public CommentController(CommentService commentService) {
+    this.commentService = commentService;
+  }
 
   @GetMapping("/api/v1/comment")
-  public ResponseEntity<?> getComment(@RequestParam("commentId") Long commentId) {
+  public ResponseEntity<?> getComment(@RequestParam("commentId") Integer commentId) {
     try {
-      if (commentId != null) {
-        return ResponseEntity.status(HttpStatus.OK).body("Here is your Comment");
-      } else {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Expected parameter commentId");
-      }
+      return commentService
+          .getComment(commentId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    } catch (Exception e) {
+      logger.error(e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while processing your request");
+    }
+  }
+
+  @GetMapping("/api/v1/comments")
+  public ResponseEntity<?> getAllComments() {
+    try {
+      return commentService
+          .getAllComments()
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     } catch (Exception e) {
       logger.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
