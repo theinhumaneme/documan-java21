@@ -1,2 +1,0 @@
-INSERT INTO documan_user(first_name, last_name, username, email, password, role_id, department_id, year_id, semester_id)
-VALUES ('Kalyan', 'Mudumby', 'theinhumaneme', 'theinhumaneme@gmail.com', '1234567890', 3, 2, 2, 1);
