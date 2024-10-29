@@ -7,8 +7,10 @@
 package com.kalyan.documan.service;
 
 import com.kalyan.documan.dao.PostDao;
+import com.kalyan.documan.dao.UserDao;
 import com.kalyan.documan.entity.Comment;
 import com.kalyan.documan.entity.Post;
+import com.kalyan.documan.entity.User;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,11 +21,13 @@ public class PostService {
 
   private final PostDao postDao;
   private final CommentService commentService;
+  private final UserDao userDao;
 
   @Autowired
-  public PostService(PostDao postDao, CommentService commentService) {
+  public PostService(PostDao postDao, CommentService commentService, UserDao userDao) {
     this.postDao = postDao;
     this.commentService = commentService;
+    this.userDao = userDao;
   }
 
   public Optional<Post> findById(Integer postId) {
@@ -40,5 +44,30 @@ public class PostService {
 
   public Optional<List<Comment>> getPostComments(Integer postId) {
     return commentService.getCommentsByPostId(postId);
+  }
+
+  public Optional<Post> createPost(Post post, Integer userId) {
+    Optional<User> user = userDao.findById(userId);
+    if (user.isEmpty()) {
+      return Optional.empty();
+    } else {
+      post.setUser(user.get());
+      Post savedPost = postDao.save(post);
+      return Optional.of(savedPost);
+    }
+  }
+
+  public Optional<Post> updatePost(Post post, Integer postId) {
+    Optional<Post> oldPost = postDao.findById(postId);
+    if (oldPost.isEmpty()) {
+      return Optional.empty();
+    } else {
+      Post updatedPost = oldPost.get();
+      updatedPost.setContent(post.getContent());
+      updatedPost.setTitle(post.getTitle());
+      updatedPost.setDescription(post.getDescription());
+      postDao.save(updatedPost);
+      return Optional.of(updatedPost);
+    }
   }
 }

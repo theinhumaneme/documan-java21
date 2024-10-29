@@ -1,0 +1,23 @@
+meta {
+  name: POST update
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{host}}/api/v1/post?postId=1
+  body: json
+  auth: none
+}
+
+params:query {
+  postId: 1
+}
+
+body:json {
+  {
+    "title": "I am updated post title",
+    "description": "I am updated post title",
+    "content": "I am updated post title"
+  }
+}

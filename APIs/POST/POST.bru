@@ -1,0 +1,23 @@
+meta {
+  name: POST
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{host}}/api/v1/post?userId=1
+  body: json
+  auth: none
+}
+
+params:query {
+  userId: 1
+}
+
+body:json {
+  {
+    "title": "hello",
+    "description": "hello",
+    "content": "hello"
+  }
+}

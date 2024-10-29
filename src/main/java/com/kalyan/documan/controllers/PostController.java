@@ -6,6 +6,7 @@
 // sublicense, and/or sell copies of the software.
 package com.kalyan.documan.controllers;
 
+import com.kalyan.documan.entity.Post;
 import com.kalyan.documan.service.PostService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,13 +53,28 @@ public class PostController {
   }
 
   @PostMapping
-  public ResponseEntity<?> createPost(@RequestParam("post") Long postId) {
+  public ResponseEntity<?> createPost(
+      @RequestBody Post post, @RequestParam("userId") Integer userId) {
     try {
-      if (postId == null) {
-        return ResponseEntity.status(HttpStatus.OK).body(("Expected Post, received none"));
-      } else {
-        return ResponseEntity.status(HttpStatus.OK).body("Here is your Post");
-      }
+      return postService
+          .createPost(post, userId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
+    } catch (Exception e) {
+      logger.error(e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while processing the post.");
+    }
+  }
+
+  @PutMapping
+  public ResponseEntity<?> updatePost(
+      @RequestBody Post post, @RequestParam("postId") Integer postId) {
+    try {
+      return postService
+          .updatePost(post, postId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
     } catch (Exception e) {
       logger.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
