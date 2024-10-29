@@ -82,7 +82,7 @@ public class UserService {
     Optional<User> user = userDao.findById(userId);
     return user.map(
         value ->
-            subjectDao.getUserSubjects(
+            subjectDao.getSubjects(
                 value.getDepartment().getId(),
                 value.getYear().getId(),
                 value.getSemester().getId()));

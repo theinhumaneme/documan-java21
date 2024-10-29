@@ -16,9 +16,9 @@ public interface SubjectDao extends JpaRepository<Subject, Integer> {
 
   @Query(
       value =
-          "select * from subject s where s.department_id =: departmentId and s.year_id =: yearId and s.semester_id =: semseterId",
+          "select * from subject s where s.department_id = :departmentId and s.year_id = :yearId and s.semester_id = :semesterId",
       nativeQuery = true)
-  public List<Subject> getUserSubjects(
+  public List<Subject> getSubjects(
       @Param("departmentId") Integer departmentId,
       @Param("yearId") Integer yearId,
       @Param("semesterId") Integer semesterId);
