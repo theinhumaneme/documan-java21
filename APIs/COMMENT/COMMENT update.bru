@@ -1,0 +1,21 @@
+meta {
+  name: COMMENT update
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{host}}/api/v1/comment?commentId=200
+  body: json
+  auth: none
+}
+
+params:query {
+  commentId: 200
+}
+
+body:json {
+  {
+    "content": "Hello I am updated commment"
+  }
+}

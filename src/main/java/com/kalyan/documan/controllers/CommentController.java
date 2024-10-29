@@ -6,6 +6,7 @@
 // sublicense, and/or sell copies of the software.
 package com.kalyan.documan.controllers;
 
+import com.kalyan.documan.entity.Comment;
 import com.kalyan.documan.service.CommentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,13 +53,30 @@ public class CommentController {
   }
 
   @PostMapping
-  public ResponseEntity<?> createComment(@RequestParam("comment") Long commentId) {
+  public ResponseEntity<?> createComment(
+      @RequestBody Comment comment,
+      @RequestParam("userId") Integer userId,
+      @RequestParam("postId") Integer postId) {
     try {
-      if (commentId == null) {
-        return ResponseEntity.status(HttpStatus.OK).body(("Expected Comment, received none"));
-      } else {
-        return ResponseEntity.status(HttpStatus.OK).body("Here is your Comment");
-      }
+      return commentService
+          .addComment(comment, userId, postId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
+    } catch (Exception e) {
+      logger.error(e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while processing the comment.");
+    }
+  }
+
+  @PutMapping
+  public ResponseEntity<?> createComment(
+      @RequestBody Comment comment, @RequestParam("commentId") Integer commentId) {
+    try {
+      return commentService
+          .updateComment(comment, commentId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
     } catch (Exception e) {
       logger.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

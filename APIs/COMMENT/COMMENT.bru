@@ -1,0 +1,22 @@
+meta {
+  name: COMMENT
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{host}}/api/v1/comment?userId=1&postId=2
+  body: json
+  auth: none
+}
+
+params:query {
+  userId: 1
+  postId: 2
+}
+
+body:json {
+  {
+    "content": "Hello I am a commment"
+  }
+}
