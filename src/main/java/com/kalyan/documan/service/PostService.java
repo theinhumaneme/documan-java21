@@ -50,9 +50,12 @@ public class PostService {
     Optional<User> user = userDao.findById(userId);
     if (user.isEmpty()) {
       return Optional.empty();
+    } else if (post.getId() != null) {
+      return Optional.empty();
     } else {
-      post.setUser(user.get());
-      Post savedPost = postDao.save(post);
+      Post newPost = new Post();
+      newPost.setUser(user.get());
+      Post savedPost = postDao.save(newPost);
       return Optional.of(savedPost);
     }
   }
