@@ -27,7 +27,7 @@ public class PostController {
   public ResponseEntity<?> getPost(@RequestParam("postId") Integer postId) {
     try {
       return postService
-          .getPost(postId)
+          .findById(postId)
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     } catch (Exception e) {

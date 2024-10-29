@@ -26,7 +26,7 @@ public class PostService {
     this.commentService = commentService;
   }
 
-  public Optional<Post> getPost(Integer postId) {
+  public Optional<Post> findById(Integer postId) {
     return postDao.findById(postId);
   }
 
