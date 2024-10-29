@@ -60,10 +60,14 @@ public class CommentService {
     Optional<Post> post = postDao.findById(postId);
     if (user.isEmpty() || post.isEmpty()) {
       return Optional.empty();
+    } else if (comment.getId() != null) {
+      return Optional.empty();
     } else {
-      comment.setUser(user.get());
-      comment.setPost(post.get());
-      Comment savedComment = commentDao.save(comment);
+      Comment newComment = new Comment();
+      newComment.setContent(comment.getContent());
+      newComment.setUser(user.get());
+      newComment.setPost(post.get());
+      Comment savedComment = commentDao.save(newComment);
       return Optional.of(savedComment);
     }
   }
