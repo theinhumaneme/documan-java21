@@ -35,11 +35,7 @@ public class PostService {
   }
 
   public Optional<List<Post>> getPostsByUser(Integer userId) {
-    List<Post> posts = postDao.getPostsByUserId(userId);
-    if (!posts.isEmpty()) {
-      return Optional.of(posts);
-    }
-    return Optional.empty();
+    return Optional.of(postDao.getPostsByUserId(userId));
   }
 
   public Optional<List<Comment>> getPostComments(Integer postId) {
