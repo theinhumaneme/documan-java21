@@ -50,16 +50,19 @@ public class Subject {
   @Column(name = "code")
   private String code;
 
+  @JsonIgnore
   @JoinColumn(name = "department_id", nullable = false)
-  @ManyToOne(fetch = FetchType.EAGER)
+  @ManyToOne(fetch = FetchType.LAZY)
   private Department department;
 
+  @JsonIgnore
   @JoinColumn(name = "year_id", nullable = false)
-  @ManyToOne(fetch = FetchType.EAGER)
+  @ManyToOne(fetch = FetchType.LAZY)
   private Year year;
 
+  @JsonIgnore
   @JoinColumn(name = "semester_id", nullable = false)
-  @ManyToOne(fetch = FetchType.EAGER)
+  @ManyToOne(fetch = FetchType.LAZY)
   private Semester semester;
 
   @JsonIgnore
