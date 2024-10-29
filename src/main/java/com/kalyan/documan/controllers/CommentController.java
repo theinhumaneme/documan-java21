@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
+@RequestMapping(("/api/v1/comment"))
 public class CommentController {
   private static final Logger logger = LoggerFactory.getLogger(CommentController.class);
   private final CommentService commentService;
@@ -22,7 +23,7 @@ public class CommentController {
     this.commentService = commentService;
   }
 
-  @GetMapping("/api/v1/comment")
+  @GetMapping
   public ResponseEntity<?> getComment(@RequestParam("commentId") Integer commentId) {
     try {
       return commentService
@@ -36,7 +37,7 @@ public class CommentController {
     }
   }
 
-  @GetMapping("/api/v1/comments")
+  @GetMapping("/all")
   public ResponseEntity<?> getAllComments() {
     try {
       return commentService
@@ -50,7 +51,7 @@ public class CommentController {
     }
   }
 
-  @PostMapping("/api/v1/comment")
+  @PostMapping
   public ResponseEntity<?> createComment(@RequestParam("comment") Long commentId) {
     try {
       if (commentId == null) {

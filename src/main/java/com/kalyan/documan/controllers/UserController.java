@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
+@RequestMapping(("/api/v1/user"))
 public class UserController {
   private static final Logger logger = LoggerFactory.getLogger(UserController.class);
   private final UserService userService;
@@ -24,7 +25,7 @@ public class UserController {
     this.userService = userService;
   }
 
-  @GetMapping("/api/v1/user/id")
+  @GetMapping("/id")
   public ResponseEntity<?> getUser(
       @RequestParam(value = "userId", required = true) Integer userId) {
     try {
@@ -39,7 +40,7 @@ public class UserController {
     }
   }
 
-  @GetMapping("/api/v1/user/username")
+  @GetMapping("/username")
   public ResponseEntity<?> getUser(@RequestParam("username") String username) {
     try {
       return userService
@@ -53,7 +54,7 @@ public class UserController {
     }
   }
 
-  @PostMapping("/api/v1/user")
+  @PostMapping()
   public ResponseEntity<?> createUser(@RequestParam("user") Long userId) {
     try {
       if (userId == null) {

@@ -6,24 +6,32 @@
 // sublicense, and/or sell copies of the software.
 package com.kalyan.documan.controllers;
 
+import com.kalyan.documan.service.SubjectService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
+@RequestMapping("/api/v1/subject")
 public class SubjectController {
   private static final Logger logger = LoggerFactory.getLogger(SubjectController.class);
+  private final SubjectService subjectService;
 
-  @GetMapping("/api/v1/subject")
-  public ResponseEntity<?> getSubject(@RequestParam("subjectId") Long subjectId) {
+  @Autowired
+  public SubjectController(SubjectService subjectService) {
+    this.subjectService = subjectService;
+  }
+
+  @GetMapping
+  public ResponseEntity<?> getSubject(@RequestParam("subjectId") Integer subjectId) {
     try {
-      if (subjectId != null) {
-        return ResponseEntity.status(HttpStatus.OK).body("Here is your Subject");
-      } else {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Expected parameter subjectId");
-      }
+      return subjectService
+          .getSubjectById(subjectId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     } catch (Exception e) {
       logger.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -31,7 +39,38 @@ public class SubjectController {
     }
   }
 
-  @PostMapping("/api/v1/subject")
+  @GetMapping("/all")
+  public Object getAllSubjects() {
+    try {
+      return subjectService
+          .getAllSubjects()
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    } catch (Exception e) {
+      logger.error(e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while processing your request");
+    }
+  }
+
+  @GetMapping("/semester")
+  public Object getSubjects(
+      @RequestParam("departmentId") Integer departmentId,
+      @RequestParam("yearId") Integer yearId,
+      @RequestParam("semesterId") Integer semesterId) {
+    try {
+      return subjectService
+          .getSubjects(departmentId, yearId, semesterId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    } catch (Exception e) {
+      logger.error(e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while processing your request");
+    }
+  }
+
+  @PostMapping
   public ResponseEntity<?> createSubject(@RequestParam("subject") Long subjectId) {
     try {
       if (subjectId == null) {

@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
+@RequestMapping("/api/v1/post")
 public class PostController {
   private static final Logger logger = LoggerFactory.getLogger(PostController.class);
   private final PostService postService;
@@ -22,7 +23,7 @@ public class PostController {
     this.postService = postService;
   }
 
-  @GetMapping("/api/v1/post")
+  @GetMapping
   public ResponseEntity<?> getPost(@RequestParam("postId") Integer postId) {
     try {
       return postService
@@ -36,7 +37,7 @@ public class PostController {
     }
   }
 
-  @GetMapping("/api/v1/posts")
+  @GetMapping("/all")
   public ResponseEntity<?> getAllPosts() {
     try {
       return postService
@@ -50,7 +51,7 @@ public class PostController {
     }
   }
 
-  @PostMapping("/api/v1/post")
+  @PostMapping
   public ResponseEntity<?> createPost(@RequestParam("post") Long postId) {
     try {
       if (postId == null) {
