@@ -22,7 +22,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 @Table(
     name = "comment",
     indexes = {
-      @Index(name = "idx_comment_title", columnList = "title"),
+      @Index(name = "idx_comment_content", columnList = "content"),
       @Index(name = "idx_comment_post_id", columnList = "post_id"),
       @Index(name = "idx_comment_user_id  ", columnList = "user_id")
     })
@@ -34,14 +34,6 @@ public class Comment {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Integer id;
-
-  @NotNull
-  @Column(name = "title", nullable = false, columnDefinition = "TEXT")
-  private String title;
-
-  @NotNull
-  @Column(name = "description", nullable = false, columnDefinition = "TEXT")
-  private String description;
 
   @NotNull
   @Column(name = "content", nullable = false, columnDefinition = "TEXT")
