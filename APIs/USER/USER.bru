@@ -1,0 +1,32 @@
+meta {
+  name: USER
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{host}}/api/v1/user?departmentId=1&yearId=1&semesterId=1&roleId=1
+  body: json
+  auth: none
+}
+
+params:query {
+  departmentId: 1
+  yearId: 1
+  semesterId: 1
+  roleId: 1
+}
+
+body:json {
+  {
+    "username": "lmaolam",
+    "firstName": "Kalyan",
+    "password": "1234345464565",
+    "lastName": "Mudumby",
+    "email": "haha@gmail.com",
+    "role": 3,
+    "department": 2,
+    "year": 2,
+    "semester": 1
+  }
+}

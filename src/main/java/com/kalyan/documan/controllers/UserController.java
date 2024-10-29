@@ -6,6 +6,7 @@
 // sublicense, and/or sell copies of the software.
 package com.kalyan.documan.controllers;
 
+import com.kalyan.documan.entity.User;
 import com.kalyan.documan.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,13 +56,37 @@ public class UserController {
   }
 
   @PostMapping()
-  public ResponseEntity<?> createUser(@RequestParam("user") Long userId) {
+  public ResponseEntity<?> createUser(
+      @RequestBody User user,
+      @RequestParam("departmentId") Integer departmentId,
+      @RequestParam("yearId") Integer yearId,
+      @RequestParam("semesterId") Integer semesterId,
+      @RequestParam("roleId") Integer roleId) {
     try {
-      if (userId == null) {
-        return ResponseEntity.status(HttpStatus.OK).body(("Expected User, received none"));
-      } else {
-        return ResponseEntity.status(HttpStatus.OK).body("Here is your User");
-      }
+      return userService
+          .createUser(user, departmentId, yearId, semesterId, roleId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
+    } catch (Exception e) {
+      logger.error(e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while processing the user.");
+    }
+  }
+
+  @PutMapping()
+  public ResponseEntity<?> updateUser(
+      @RequestBody User user,
+      @RequestParam("userId") Integer userId,
+      @RequestParam("departmentId") Integer departmentId,
+      @RequestParam("yearId") Integer yearId,
+      @RequestParam("semesterId") Integer semesterId,
+      @RequestParam("roleId") Integer roleId) {
+    try {
+      return userService
+          .updateUser(user, userId, departmentId, yearId, semesterId, roleId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
     } catch (Exception e) {
       logger.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
