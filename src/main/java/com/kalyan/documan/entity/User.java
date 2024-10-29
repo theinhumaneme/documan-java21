@@ -8,6 +8,7 @@ package com.kalyan.documan.entity;
 
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -42,8 +43,8 @@ public class User {
   @Column(name = "username", unique = true, nullable = false)
   private String username;
 
-  @JsonIgnore
   @NotNull
+  @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
   @Column(name = "password", nullable = false)
   private String password;
 
