@@ -14,25 +14,53 @@ import com.kalyan.documan.entity.Post;
 import com.kalyan.documan.entity.User;
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class CommentService {
 
+  private static final Logger log = LoggerFactory.getLogger(CommentService.class);
   private final CommentDao commentDao;
   private final UserDao userDao;
   private final PostDao postDao;
+  private final RedisCacheService redisCacheService;
 
   @Autowired
-  public CommentService(CommentDao commentDao, UserDao userDao, PostDao postDao) {
+  public CommentService(
+      CommentDao commentDao,
+      UserDao userDao,
+      PostDao postDao,
+      RedisCacheService redisCacheService) {
     this.commentDao = commentDao;
     this.userDao = userDao;
     this.postDao = postDao;
+    this.redisCacheService = redisCacheService;
   }
 
   public Optional<Comment> getComment(Integer commentId) {
-    return commentDao.findById(commentId);
+    String commentKey = String.format("COMMENT%s", commentId);
+    Optional<Comment> cachedEntity = redisCacheService.getValue(commentKey, Comment.class);
+    if (cachedEntity.isEmpty()) {
+      log.error("Comment {} not found in cache", commentId);
+      Optional<Comment> comment = commentDao.findById(commentId);
+      if (comment.isPresent()) {
+        Optional<Comment> cachedComment = redisCacheService.setValue(commentKey, comment.get());
+        if (cachedComment.isEmpty()) {
+          log.error("Failed to cache Comment {}", commentId);
+        } else {
+          log.info("cached Comment {}", commentId);
+        }
+        return comment; // return user from db cache if exists
+      } else {
+        return Optional.empty();
+      }
+    } else {
+      log.info("Comment {} found in cache", commentId);
+    }
+    return cachedEntity;
   }
 
   public Optional<List<Comment>> getAllComments() {
@@ -68,6 +96,13 @@ public class CommentService {
       newComment.setUser(user.get());
       newComment.setPost(post.get());
       Comment savedComment = commentDao.save(newComment);
+      String commentKey = String.format("COMMENT%s", savedComment.getId());
+      Optional<Comment> cachedEntity = redisCacheService.updateValue(commentKey, savedComment);
+      if (cachedEntity.isEmpty()) {
+        log.error("Failed to add Comment {} in cache", savedComment.getId());
+      } else {
+        log.info("Comment {} added in cache", savedComment.getId());
+      }
       return Optional.of(savedComment);
     }
   }
@@ -79,7 +114,14 @@ public class CommentService {
     } else {
       Comment updatedComment = oldComment.get();
       updatedComment.setContent(comment.getContent());
-      commentDao.save(updatedComment);
+      Comment updatedEntity = commentDao.save(updatedComment);
+      String commentKey = String.format("COMMENT%s", updatedEntity.getId());
+      Optional<Comment> cachedEntity = redisCacheService.updateValue(commentKey, updatedEntity);
+      if (cachedEntity.isEmpty()) {
+        log.error("Failed to update Comment {} in cache", updatedEntity.getId());
+      } else {
+        log.info("Comment {} updated in cache", updatedEntity.getId());
+      }
       return Optional.of(updatedComment);
     }
   }
