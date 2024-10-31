@@ -6,12 +6,12 @@
 // sublicense, and/or sell copies of the software.
 package com.kalyan.documan.security;
 
-import com.kalyan.documan.controllers.UserController;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Enumeration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -20,17 +20,32 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 public class RequestFilter extends OncePerRequestFilter {
 
-  private static final Logger logger = LoggerFactory.getLogger(UserController.class);
+  private static final Logger logger = LoggerFactory.getLogger(RequestFilter.class);
 
   @Override
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
-    // !TODO ensure to print all the paramters and headers along with request body and response body
-    logger.info("Request URL: " + request.getRequestURL());
-    logger.info("Request Method: " + request.getMethod());
-    logger.info("Request Headers: " + request.getHeaderNames().toString());
-    logger.info("Request Parameters: " + request.getParameterMap().toString());
+    logger.info("{} - {}", request.getMethod(), request.getRequestURL());
+
+    Enumeration<String> headerNames = request.getHeaderNames();
+    StringBuilder headers = new StringBuilder();
+    while (headerNames.hasMoreElements()) {
+      String headerName = headerNames.nextElement();
+      String headerValue = request.getHeader(headerName);
+      headers.append(headerName).append(": ").append(headerValue).append(" ");
+    }
+    logger.info("Request Headers: {}", headers);
+    Enumeration<String> parameterNames = request.getParameterNames();
+    StringBuilder params = new StringBuilder();
+    while (parameterNames.hasMoreElements()) {
+      String paramName = parameterNames.nextElement();
+      String[] paramValues = request.getParameterValues(paramName);
+      for (String paramValue : paramValues) {
+        params.append(paramName).append(": ").append(paramValue).append(" ");
+      }
+    }
+    logger.info("Request Parameters: {}", params);
 
     filterChain.doFilter(request, response);
   }
