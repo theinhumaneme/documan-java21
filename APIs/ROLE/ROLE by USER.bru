@@ -1,0 +1,15 @@
+meta {
+  name: ROLE by USER
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{host}}/api/v1/role/user?userId=1
+  body: json
+  auth: none
+}
+
+params:query {
+  userId: 1
+}

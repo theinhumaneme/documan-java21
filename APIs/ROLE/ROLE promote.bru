@@ -1,0 +1,16 @@
+meta {
+  name: ROLE promote
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{host}}/api/v1/role/promote?userId=1&roleId=3
+  body: json
+  auth: none
+}
+
+params:query {
+  userId: 1
+  roleId: 3
+}

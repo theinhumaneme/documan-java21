@@ -1,0 +1,16 @@
+meta {
+  name: ROLE demote
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{host}}/api/v1/role/demote?userId=1&roleId=2
+  body: json
+  auth: none
+}
+
+params:query {
+  userId: 1
+  roleId: 2
+}
