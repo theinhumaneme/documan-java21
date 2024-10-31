@@ -5,6 +5,5 @@ export const options = {
     duration: '30s',
 };
 export default function () {
-    http.get('http://localhost:8080/api/v1/user/username?username=theinhumaneme');
-    sleep(1);
+    http.get('http://localhost:8080/api/v1/user/id?userId=1');
 }
