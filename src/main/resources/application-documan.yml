@@ -1,4 +1,6 @@
 spring:
+  devtools:
+    add-properties: false
   application:
     name: "documan"
   data:
