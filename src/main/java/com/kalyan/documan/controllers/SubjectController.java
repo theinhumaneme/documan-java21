@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/subject")
 public class SubjectController {
-  private static final Logger logger = LoggerFactory.getLogger(SubjectController.class);
+  private static final Logger log = LoggerFactory.getLogger(SubjectController.class);
   private final SubjectService subjectService;
 
   @Autowired
@@ -33,7 +33,7 @@ public class SubjectController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     } catch (Exception e) {
-      logger.error(e.getMessage());
+      log.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing your request");
     }
@@ -47,7 +47,7 @@ public class SubjectController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     } catch (Exception e) {
-      logger.error(e.getMessage());
+      log.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing your request");
     }
@@ -64,7 +64,7 @@ public class SubjectController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     } catch (Exception e) {
-      logger.error(e.getMessage());
+      log.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing your request");
     }
@@ -79,7 +79,7 @@ public class SubjectController {
         return ResponseEntity.status(HttpStatus.OK).body("Here is your Subject");
       }
     } catch (Exception e) {
-      logger.error(e.getMessage());
+      log.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing the subject.");
     }

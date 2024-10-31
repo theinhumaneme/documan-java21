@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping(("/api/v1/user"))
 public class UserController {
-  private static final Logger logger = LoggerFactory.getLogger(UserController.class);
+  private static final Logger log = LoggerFactory.getLogger(UserController.class);
   private final UserService userService;
 
   @Autowired
@@ -35,7 +35,7 @@ public class UserController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     } catch (Exception e) {
-      logger.error(e.getMessage());
+      log.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing your request");
     }
@@ -49,7 +49,7 @@ public class UserController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     } catch (Exception e) {
-      logger.error(e.getMessage());
+      log.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing your request");
     }
@@ -68,7 +68,7 @@ public class UserController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
     } catch (Exception e) {
-      logger.error(e.getMessage());
+      log.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing the user.");
     }
@@ -88,7 +88,7 @@ public class UserController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
     } catch (Exception e) {
-      logger.error(e.getMessage());
+      log.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing the user.");
     }

@@ -20,13 +20,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 public class RequestFilter extends OncePerRequestFilter {
 
-  private static final Logger logger = LoggerFactory.getLogger(RequestFilter.class);
+  private static final Logger log = LoggerFactory.getLogger(RequestFilter.class);
 
   @Override
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
-    logger.info("{} - {}", request.getMethod(), request.getRequestURL());
+    log.info("{} - {}", request.getMethod(), request.getRequestURL());
 
     Enumeration<String> headerNames = request.getHeaderNames();
     StringBuilder headers = new StringBuilder();
@@ -35,7 +35,7 @@ public class RequestFilter extends OncePerRequestFilter {
       String headerValue = request.getHeader(headerName);
       headers.append(headerName).append(": ").append(headerValue).append(" ");
     }
-    logger.info("Request Headers: {}", headers);
+    log.info("Request Headers: {}", headers);
     Enumeration<String> parameterNames = request.getParameterNames();
     StringBuilder params = new StringBuilder();
     while (parameterNames.hasMoreElements()) {
@@ -45,7 +45,7 @@ public class RequestFilter extends OncePerRequestFilter {
         params.append(paramName).append(": ").append(paramValue).append(" ");
       }
     }
-    logger.info("Request Parameters: {}", params);
+    log.info("Request Parameters: {}", params);
 
     filterChain.doFilter(request, response);
   }

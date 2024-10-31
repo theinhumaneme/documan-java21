@@ -15,7 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 public class FileController {
-  private static final Logger logger = LoggerFactory.getLogger(FileController.class);
+  private static final Logger log = LoggerFactory.getLogger(FileController.class);
 
   @GetMapping("/api/v1/file")
   public ResponseEntity<?> getFile(@RequestParam("fileId") Long fileId) {
@@ -26,7 +26,7 @@ public class FileController {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Expected parameter fileId");
       }
     } catch (Exception e) {
-      logger.error(e.getMessage());
+      log.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing your request");
     }
@@ -41,7 +41,7 @@ public class FileController {
         return ResponseEntity.status(HttpStatus.OK).body("Here is your File");
       }
     } catch (Exception e) {
-      logger.error(e.getMessage());
+      log.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing the file.");
     }

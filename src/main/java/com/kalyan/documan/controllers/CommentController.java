@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping(("/api/v1/comment"))
 public class CommentController {
-  private static final Logger logger = LoggerFactory.getLogger(CommentController.class);
+  private static final Logger log = LoggerFactory.getLogger(CommentController.class);
   private final CommentService commentService;
 
   public CommentController(CommentService commentService) {
@@ -32,7 +32,7 @@ public class CommentController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     } catch (Exception e) {
-      logger.error(e.getMessage());
+      log.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing your request");
     }
@@ -46,7 +46,7 @@ public class CommentController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     } catch (Exception e) {
-      logger.error(e.getMessage());
+      log.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing your request");
     }
@@ -63,7 +63,7 @@ public class CommentController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
     } catch (Exception e) {
-      logger.error(e.getMessage());
+      log.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing the comment.");
     }
@@ -78,7 +78,7 @@ public class CommentController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
     } catch (Exception e) {
-      logger.error(e.getMessage());
+      log.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing the comment.");
     }
