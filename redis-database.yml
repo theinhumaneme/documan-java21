@@ -17,7 +17,7 @@ services:
       - ./persist/redis:/root/redis:rw
     restart: unless-stopped
     ports:
-      - 4379:6379
+      - 6379:6379
     command: redis-server --requirepass password
     stdin_open: true
     tty: true
