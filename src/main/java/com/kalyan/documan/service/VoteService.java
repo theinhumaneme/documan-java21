@@ -99,7 +99,7 @@ public class VoteService {
         return Optional.of((T) postDao.save(post));
       }
     } catch (Exception e) {
-      log.error(e.getMessage());
+      log.error(e.toString());
     }
     return Optional.empty();
   }

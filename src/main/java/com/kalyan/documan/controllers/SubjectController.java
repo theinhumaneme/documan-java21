@@ -33,7 +33,7 @@ public class SubjectController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     } catch (Exception e) {
-      log.error(e.getMessage());
+      log.error(e.toString());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing your request");
     }
@@ -47,7 +47,7 @@ public class SubjectController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     } catch (Exception e) {
-      log.error(e.getMessage());
+      log.error(e.toString());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing your request");
     }
@@ -64,7 +64,7 @@ public class SubjectController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     } catch (Exception e) {
-      log.error(e.getMessage());
+      log.error(e.toString());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing your request");
     }
@@ -79,7 +79,7 @@ public class SubjectController {
         return ResponseEntity.status(HttpStatus.OK).body("Here is your Subject");
       }
     } catch (Exception e) {
-      log.error(e.getMessage());
+      log.error(e.toString());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing the subject.");
     }

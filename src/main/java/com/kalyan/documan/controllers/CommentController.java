@@ -35,7 +35,7 @@ public class CommentController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     } catch (Exception e) {
-      log.error(e.getMessage());
+      log.error(e.toString());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing your request");
     }
@@ -49,7 +49,7 @@ public class CommentController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     } catch (Exception e) {
-      log.error(e.getMessage());
+      log.error(e.toString());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing your request");
     }
@@ -66,7 +66,7 @@ public class CommentController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
     } catch (Exception e) {
-      log.error(e.getMessage());
+      log.error(e.toString());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing the comment.");
     }
@@ -98,7 +98,7 @@ public class CommentController {
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
     } catch (Exception e) {
-      log.error(e.getMessage());
+      log.error(e.toString());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while applying the vote");
     }

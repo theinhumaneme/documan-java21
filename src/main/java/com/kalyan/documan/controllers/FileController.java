@@ -26,7 +26,7 @@ public class FileController {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Expected parameter fileId");
       }
     } catch (Exception e) {
-      log.error(e.getMessage());
+      log.error(e.toString());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing your request");
     }
@@ -41,7 +41,7 @@ public class FileController {
         return ResponseEntity.status(HttpStatus.OK).body("Here is your File");
       }
     } catch (Exception e) {
-      log.error(e.getMessage());
+      log.error(e.toString());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing the file.");
     }
