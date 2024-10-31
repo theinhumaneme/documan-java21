@@ -29,7 +29,6 @@ import org.hibernate.annotations.UpdateTimestamp;
     })
 @Getter
 @Setter
-@JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")
 public class User {
 
   @Id

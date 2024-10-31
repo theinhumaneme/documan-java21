@@ -19,7 +19,6 @@ import lombok.Setter;
     indexes = {@Index(name = "idx_semester_name", columnList = "name", unique = true)})
 @Getter
 @Setter
-@JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")
 public class Semester {
 
   @Id

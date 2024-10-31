@@ -24,7 +24,6 @@ import lombok.Setter;
     })
 @Getter
 @Setter
-@JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "id")
 public class Subject {
 
   @Id
