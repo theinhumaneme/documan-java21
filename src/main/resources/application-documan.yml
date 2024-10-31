@@ -1,6 +1,11 @@
 spring:
   application:
     name: "documan"
+  data:
+    redis:
+      password: password
+      port: 6379
+      host: localhost
   jpa:
     database: postgresql
     hibernate:
