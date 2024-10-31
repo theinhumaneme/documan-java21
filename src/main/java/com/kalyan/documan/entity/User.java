@@ -12,7 +12,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
@@ -79,12 +79,12 @@ public class User {
   @NotNull
   @Column(name = "date_created", nullable = false)
   @CreationTimestamp
-  private LocalDateTime dateCreated;
+  private OffsetDateTime dateCreated;
 
   @NotNull
   @Column(name = "date_last_interacted", nullable = false)
   @UpdateTimestamp
-  private LocalDateTime dateLastInteracted;
+  private OffsetDateTime dateLastInteracted;
 
   @JoinColumn(name = "role_id", nullable = false)
   @ManyToOne(fetch = FetchType.EAGER)

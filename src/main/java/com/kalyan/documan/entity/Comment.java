@@ -11,7 +11,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
@@ -42,12 +42,12 @@ public class Comment {
   @NotNull
   @Column(name = "date_created", nullable = false)
   @CreationTimestamp
-  private LocalDateTime dateCreated;
+  private OffsetDateTime dateCreated;
 
   @NotNull
   @Column(name = "date_modified", nullable = false)
   @UpdateTimestamp
-  private LocalDateTime dateModified;
+  private OffsetDateTime dateModified;
 
   @JsonIgnore
   @JoinColumn(name = "post_id", nullable = false)
