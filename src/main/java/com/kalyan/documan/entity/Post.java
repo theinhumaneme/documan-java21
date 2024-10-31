@@ -6,9 +6,7 @@
 // sublicense, and/or sell copies of the software.
 package com.kalyan.documan.entity;
 
-import com.fasterxml.jackson.annotation.JsonIdentityInfo;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import com.fasterxml.jackson.annotation.*;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import java.time.OffsetDateTime;
@@ -59,10 +57,12 @@ public class Post {
   @JsonIgnore
   @JoinColumn(name = "user_id", nullable = false)
   @ManyToOne(fetch = FetchType.LAZY)
+  @JsonBackReference(value = "user-posts")
   private User user;
 
   @JsonIgnore
   @OneToMany(mappedBy = "post", fetch = FetchType.EAGER)
+  @JsonManagedReference(value = "post-comments")
   private List<Comment> comments;
 
   // users who have favourited the post

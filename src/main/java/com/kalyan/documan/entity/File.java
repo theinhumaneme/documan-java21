@@ -6,9 +6,7 @@
 // sublicense, and/or sell copies of the software.
 package com.kalyan.documan.entity;
 
-import com.fasterxml.jackson.annotation.JsonIdentityInfo;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import com.fasterxml.jackson.annotation.*;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import java.time.OffsetDateTime;
@@ -66,6 +64,7 @@ public class File {
   @JsonIgnore
   @JoinColumn(name = "subject_id", nullable = false)
   @ManyToOne(fetch = FetchType.LAZY)
+  @JsonBackReference(value = "subject-files")
   private Subject subject;
 
   @JsonIgnore

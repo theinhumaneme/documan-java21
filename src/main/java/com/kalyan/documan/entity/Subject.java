@@ -6,9 +6,7 @@
 // sublicense, and/or sell copies of the software.
 package com.kalyan.documan.entity;
 
-import com.fasterxml.jackson.annotation.JsonIdentityInfo;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import com.fasterxml.jackson.annotation.*;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
@@ -53,19 +51,23 @@ public class Subject {
   @JsonIgnore
   @JoinColumn(name = "department_id", nullable = false)
   @ManyToOne(fetch = FetchType.LAZY)
+  @JsonBackReference(value = "department-subjects")
   private Department department;
 
   @JsonIgnore
   @JoinColumn(name = "year_id", nullable = false)
   @ManyToOne(fetch = FetchType.LAZY)
+  @JsonBackReference(value = "year-subjects")
   private Year year;
 
   @JsonIgnore
   @JoinColumn(name = "semester_id", nullable = false)
   @ManyToOne(fetch = FetchType.LAZY)
+  @JsonBackReference(value = "semester-subjects")
   private Semester semester;
 
   @JsonIgnore
   @OneToMany(mappedBy = "subject", fetch = FetchType.LAZY)
+  @JsonManagedReference(value = "subject-files")
   private List<File> files;
 }

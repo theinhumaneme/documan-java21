@@ -6,10 +6,7 @@
 // sublicense, and/or sell copies of the software.
 package com.kalyan.documan.entity;
 
-import com.fasterxml.jackson.annotation.JsonIdentityInfo;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import com.fasterxml.jackson.annotation.*;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import java.time.OffsetDateTime;
@@ -88,26 +85,32 @@ public class User {
 
   @JoinColumn(name = "role_id", nullable = false)
   @ManyToOne(fetch = FetchType.EAGER)
+  @JsonBackReference(value = "user-roles")
   private Role role;
 
   @JoinColumn(name = "department_id", nullable = false)
   @ManyToOne(fetch = FetchType.EAGER)
+  @JsonBackReference(value = "user-department")
   private Department department;
 
   @JoinColumn(name = "year_id", nullable = false)
   @ManyToOne(fetch = FetchType.EAGER)
+  @JsonBackReference(value = "users-year")
   private Year year;
 
   @JoinColumn(name = "semester_id", nullable = false)
   @ManyToOne(fetch = FetchType.EAGER)
+  @JsonBackReference(value = "users-semester")
   private Semester semester;
 
   @JsonIgnore
   @OneToMany(fetch = FetchType.LAZY, mappedBy = "user")
+  @JsonManagedReference(value = "user-posts")
   private List<Post> posts;
 
   @JsonIgnore
   @OneToMany(fetch = FetchType.LAZY, mappedBy = "user")
+  @JsonManagedReference(value = "user-comments")
   private List<Comment> comments;
 
   // Files favorite by the user

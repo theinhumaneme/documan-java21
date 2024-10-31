@@ -8,6 +8,7 @@ package com.kalyan.documan.entity;
 
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -35,9 +36,11 @@ public class Department {
 
   @JsonIgnore
   @OneToMany(mappedBy = "department", fetch = FetchType.LAZY)
+  @JsonManagedReference(value = "department-subjects")
   private List<Subject> subjects;
 
   @JsonIgnore
   @OneToMany(mappedBy = "department", fetch = FetchType.LAZY)
+  @JsonManagedReference(value = "user-department")
   private List<User> users;
 }

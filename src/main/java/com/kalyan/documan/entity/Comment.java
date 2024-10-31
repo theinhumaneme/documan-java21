@@ -6,6 +6,7 @@
 // sublicense, and/or sell copies of the software.
 package com.kalyan.documan.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
@@ -52,11 +53,13 @@ public class Comment {
   @JsonIgnore
   @JoinColumn(name = "post_id", nullable = false)
   @ManyToOne(fetch = FetchType.LAZY)
+  @JsonBackReference(value = "post-comments")
   private Post post;
 
   @JsonIgnore
   @JoinColumn(name = "user_id", nullable = false)
   @ManyToOne(fetch = FetchType.EAGER)
+  @JsonBackReference(value = "user-comments")
   private User user;
 
   // Comments upvoted by the user

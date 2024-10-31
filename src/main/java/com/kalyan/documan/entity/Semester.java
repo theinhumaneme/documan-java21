@@ -6,9 +6,7 @@
 // sublicense, and/or sell copies of the software.
 package com.kalyan.documan.entity;
 
-import com.fasterxml.jackson.annotation.JsonIdentityInfo;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import com.fasterxml.jackson.annotation.*;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
@@ -35,5 +33,11 @@ public class Semester {
 
   @JsonIgnore
   @OneToMany(mappedBy = "semester", fetch = FetchType.LAZY)
+  @JsonManagedReference(value = "semester-subjects")
   private List<Subject> subjects;
+
+  @JsonIgnore
+  @OneToMany(mappedBy = "semester", fetch = FetchType.LAZY)
+  @JsonManagedReference(value = "users-semester")
+  private List<User> users;
 }
