@@ -9,9 +9,12 @@ package com.kalyan.documan.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.util.Optional;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +28,20 @@ public class RedisCacheService {
   @Autowired
   public RedisCacheService(RedisTemplate<String, Object> redisTemplate, ObjectMapper objectMapper) {
     this.redisTemplate = redisTemplate;
+  }
+
+  @EventListener(ContextRefreshedEvent.class)
+  public void clearCacheOnStartup() {
+    log.info("Clearing Redis cache on application startup...");
+    try {
+      Set<String> keys = redisTemplate.keys("*");
+      if (keys != null && !keys.isEmpty()) {
+        redisTemplate.delete(keys);
+        log.info("Redis cache cleared.");
+      }
+    } catch (Exception e) {
+      log.error("Error clearing Redis cache on startup", e);
+    }
   }
 
   public <T> Optional<T> getValue(String redisKey, Class<T> objClass) {
