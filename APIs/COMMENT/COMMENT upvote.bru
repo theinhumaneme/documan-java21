@@ -1,0 +1,23 @@
+meta {
+  name: COMMENT upvote
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{host}}/api/v1/comment/vote?userId=1&commentId=1&voteType=upvote
+  body: json
+  auth: none
+}
+
+params:query {
+  userId: 1
+  commentId: 1
+  voteType: upvote
+}
+
+body:json {
+  {
+    "content": "Hello I am a commment"
+  }
+}

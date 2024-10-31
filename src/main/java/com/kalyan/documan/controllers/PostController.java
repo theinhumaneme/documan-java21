@@ -8,6 +8,7 @@ package com.kalyan.documan.controllers;
 
 import com.kalyan.documan.entity.Post;
 import com.kalyan.documan.service.PostService;
+import com.kalyan.documan.service.VoteService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -19,9 +20,11 @@ import org.springframework.web.bind.annotation.*;
 public class PostController {
   private static final Logger log = LoggerFactory.getLogger(PostController.class);
   private final PostService postService;
+  private final VoteService voteService;
 
-  public PostController(PostService postService) {
+  public PostController(PostService postService, VoteService voteService) {
     this.postService = postService;
+    this.voteService = voteService;
   }
 
   @GetMapping
@@ -79,6 +82,23 @@ public class PostController {
       log.error(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing the post.");
+    }
+  }
+
+  @PostMapping("vote")
+  public ResponseEntity<?> votePost(
+      @RequestParam("voteType") String voteType,
+      @RequestParam("postId") Integer postId,
+      @RequestParam("userId") Integer userId) {
+    try {
+      return voteService
+          .votePost(userId, postId, voteType)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
+    } catch (Exception e) {
+      log.error(e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while applying the vote");
     }
   }
 }

@@ -1,0 +1,23 @@
+meta {
+  name: COMMENT downvote
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{host}}/api/v1/comment/vote?userId=1&commentId=1&voteType=downvote
+  body: json
+  auth: none
+}
+
+params:query {
+  userId: 1
+  commentId: 1
+  voteType: downvote
+}
+
+body:json {
+  {
+    "content": "Hello I am a commment"
+  }
+}
