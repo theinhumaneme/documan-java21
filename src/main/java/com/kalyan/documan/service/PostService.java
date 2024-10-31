@@ -13,25 +13,52 @@ import com.kalyan.documan.entity.Post;
 import com.kalyan.documan.entity.User;
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class PostService {
-
+  private static final Logger log = LoggerFactory.getLogger(PostService.class);
   private final PostDao postDao;
   private final CommentService commentService;
   private final UserDao userDao;
+  private final RedisCacheService redisCacheService;
 
   @Autowired
-  public PostService(PostDao postDao, CommentService commentService, UserDao userDao) {
+  public PostService(
+      PostDao postDao,
+      CommentService commentService,
+      UserDao userDao,
+      RedisCacheService redisCacheService) {
     this.postDao = postDao;
     this.commentService = commentService;
     this.userDao = userDao;
+    this.redisCacheService = redisCacheService;
   }
 
   public Optional<Post> findById(Integer postId) {
-    return postDao.findById(postId);
+    String postKey = String.format("POST%s", postId);
+    Optional<Post> cachedEntity = redisCacheService.getValue(postKey, Post.class);
+    if (cachedEntity.isEmpty()) {
+      log.error("Post {} not found in cache", postId);
+      Optional<Post> post = postDao.findById(postId);
+      if (post.isPresent()) {
+        Optional<Post> cachedPost = redisCacheService.setValue(postKey, post.get());
+        if (cachedPost.isEmpty()) {
+          log.error("Failed to cache Post {}", postId);
+        } else {
+          log.info("cached Post {}", postId);
+        }
+        return post; // return user from db cache if exists
+      } else {
+        return Optional.empty();
+      }
+    } else {
+      log.info("Post {} found in cache", postId);
+    }
+    return cachedEntity;
   }
 
   public Optional<List<Post>> getAllPosts() {
@@ -54,9 +81,19 @@ public class PostService {
       return Optional.empty();
     } else {
       Post newPost = new Post();
+      newPost.setTitle(post.getTitle());
+      newPost.setContent(post.getContent());
+      newPost.setDescription(post.getDescription());
       newPost.setUser(user.get());
-      Post savedPost = postDao.save(newPost);
-      return Optional.of(savedPost);
+      Post updatedEntity = postDao.save(newPost);
+      String commentKey = String.format("POST%s", updatedEntity.getId());
+      Optional<Post> cachedEntity = redisCacheService.updateValue(commentKey, updatedEntity);
+      if (cachedEntity.isEmpty()) {
+        log.error("Failed to add Post {} in cache", updatedEntity.getId());
+      } else {
+        log.info("Post {} add in cache", updatedEntity.getId());
+      }
+      return Optional.of(updatedEntity);
     }
   }
 
@@ -69,8 +106,15 @@ public class PostService {
       updatedPost.setContent(post.getContent());
       updatedPost.setTitle(post.getTitle());
       updatedPost.setDescription(post.getDescription());
-      postDao.save(updatedPost);
-      return Optional.of(updatedPost);
+      Post updatedEntity = postDao.save(updatedPost);
+      String commentKey = String.format("POST%s", updatedEntity.getId());
+      Optional<Post> cachedEntity = redisCacheService.updateValue(commentKey, updatedEntity);
+      if (cachedEntity.isEmpty()) {
+        log.error("Failed to update Post {} in cache", updatedEntity.getId());
+      } else {
+        log.info("Post {} updated in cache", updatedEntity.getId());
+      }
+      return Optional.of(updatedEntity);
     }
   }
 }
