@@ -1,0 +1,15 @@
+meta {
+  name: SEMESTER by id
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{host}}/api/v1/semester?semesterId=1
+  body: none
+  auth: none
+}
+
+params:query {
+  semesterId: 1
+}
