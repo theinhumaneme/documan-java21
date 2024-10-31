@@ -60,11 +60,10 @@ public class UserController {
       @RequestBody User user,
       @RequestParam("departmentId") Integer departmentId,
       @RequestParam("yearId") Integer yearId,
-      @RequestParam("semesterId") Integer semesterId,
-      @RequestParam("roleId") Integer roleId) {
+      @RequestParam("semesterId") Integer semesterId) {
     try {
       return userService
-          .createUser(user, departmentId, yearId, semesterId, roleId)
+          .createUser(user, departmentId, yearId, semesterId)
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
     } catch (Exception e) {
@@ -80,11 +79,10 @@ public class UserController {
       @RequestParam("userId") Integer userId,
       @RequestParam("departmentId") Integer departmentId,
       @RequestParam("yearId") Integer yearId,
-      @RequestParam("semesterId") Integer semesterId,
-      @RequestParam("roleId") Integer roleId) {
+      @RequestParam("semesterId") Integer semesterId) {
     try {
       return userService
-          .updateUser(user, userId, departmentId, yearId, semesterId, roleId)
+          .updateUser(user, userId, departmentId, yearId, semesterId)
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
     } catch (Exception e) {

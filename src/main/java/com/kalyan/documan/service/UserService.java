@@ -24,7 +24,6 @@ public class UserService {
   private final DepartmentDao departmentDao;
   private final YearDao yearDao;
   private final SemesterDao semesterDao;
-  private final RoleDao roleDao;
   private final RedisCacheService redisCacheService;
 
   @Autowired
@@ -34,14 +33,12 @@ public class UserService {
       DepartmentDao departmentDao,
       YearDao yearDao,
       SemesterDao semesterDao,
-      RoleDao roleDao,
       RedisCacheService redisCacheService) {
     this.userDao = userDao;
     this.subjectDao = subjectDao;
     this.departmentDao = departmentDao;
     this.yearDao = yearDao;
     this.semesterDao = semesterDao;
-    this.roleDao = roleDao;
     this.redisCacheService = redisCacheService;
   }
 
@@ -127,12 +124,11 @@ public class UserService {
   }
 
   public Optional<User> createUser(
-      User user, Integer departmentId, Integer yearId, Integer semesterId, Integer roleId) {
+      User user, Integer departmentId, Integer yearId, Integer semesterId) {
     Optional<Department> department = departmentDao.findById(departmentId);
     Optional<Year> year = yearDao.findById(yearId);
     Optional<Semester> semester = semesterDao.findById(semesterId);
-    Optional<Role> role = roleDao.findById(roleId);
-    if (department.isEmpty() || year.isEmpty() || semester.isEmpty() || role.isEmpty()) {
+    if (department.isEmpty() || year.isEmpty() || semester.isEmpty()) {
       return Optional.empty();
     } else if (user.getId() != null) {
       return Optional.empty();
@@ -146,7 +142,6 @@ public class UserService {
       newUser.setDepartment(department.get());
       newUser.setYear(year.get());
       newUser.setSemester(semester.get());
-      newUser.setRole(role.get());
       User newEntity = userDao.save(newUser);
       String userKey = String.format("USER%s", newEntity.getId());
       Optional<User> cachedEntity = redisCacheService.setValue(userKey, newEntity);
@@ -160,22 +155,12 @@ public class UserService {
   }
 
   public Optional<User> updateUser(
-      User user,
-      Integer userId,
-      Integer departmentId,
-      Integer yearId,
-      Integer semesterId,
-      Integer roleId) {
+      User user, Integer userId, Integer departmentId, Integer yearId, Integer semesterId) {
     Optional<User> oldUserData = userDao.findById(userId);
     Optional<Department> department = departmentDao.findById(departmentId);
     Optional<Year> year = yearDao.findById(yearId);
     Optional<Semester> semester = semesterDao.findById(semesterId);
-    Optional<Role> role = roleDao.findById(roleId);
-    if (department.isEmpty()
-        || year.isEmpty()
-        || semester.isEmpty()
-        || oldUserData.isEmpty()
-        || role.isEmpty()) {
+    if (department.isEmpty() || year.isEmpty() || semester.isEmpty() || oldUserData.isEmpty()) {
       return Optional.empty();
     } else {
       User updatedUser = oldUserData.get();
@@ -187,7 +172,6 @@ public class UserService {
       updatedUser.setDepartment(department.get());
       updatedUser.setYear(year.get());
       updatedUser.setSemester(semester.get());
-      updatedUser.setRole(role.get());
       User updatedEntity = userDao.save(updatedUser);
       String userKey = String.format("USER%s", updatedEntity.getId());
       Optional<User> cachedEntity = redisCacheService.updateValue(userKey, updatedEntity);
