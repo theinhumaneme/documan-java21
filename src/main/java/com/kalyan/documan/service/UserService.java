@@ -10,18 +10,22 @@ import com.kalyan.documan.dao.*;
 import com.kalyan.documan.entity.*;
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class UserService {
 
+  private static final Logger log = LoggerFactory.getLogger(UserService.class);
   private final UserDao userDao;
   private final SubjectDao subjectDao;
   private final DepartmentDao departmentDao;
   private final YearDao yearDao;
   private final SemesterDao semesterDao;
   private final RoleDao roleDao;
+  private final RedisCacheService redisCacheService;
 
   @Autowired
   public UserService(
@@ -30,17 +34,38 @@ public class UserService {
       DepartmentDao departmentDao,
       YearDao yearDao,
       SemesterDao semesterDao,
-      RoleDao roleDao) {
+      RoleDao roleDao,
+      RedisCacheService redisCacheService) {
     this.userDao = userDao;
     this.subjectDao = subjectDao;
     this.departmentDao = departmentDao;
     this.yearDao = yearDao;
     this.semesterDao = semesterDao;
     this.roleDao = roleDao;
+    this.redisCacheService = redisCacheService;
   }
 
   public Optional<User> findById(Integer userId) {
-    return userDao.findById(userId);
+    String userKey = String.format("USER%s", userId);
+    Optional<User> cachedEntity = redisCacheService.getValue(userKey, User.class);
+    if (cachedEntity.isEmpty()) {
+      log.error("User {} not found in cache", userId);
+      Optional<User> user = userDao.findById(userId);
+      if (user.isPresent()) {
+        Optional<User> cachedUser = redisCacheService.setValue(userKey, user.get());
+        if (cachedUser.isEmpty()) {
+          log.error("Failed to cache User {}", userId);
+        } else {
+          log.info("cached User {}", userId);
+        }
+        return user; // return user from db cache if exists
+      } else {
+        return Optional.empty();
+      }
+    } else {
+      log.info("User {} found in cache", userId);
+    }
+    return cachedEntity;
   }
 
   public Optional<User> findByUsername(String username) {
@@ -113,8 +138,8 @@ public class UserService {
       return Optional.empty();
     } else {
       User newUser = new User();
-      newUser.setFirstName(user.getFirstName());
       newUser.setUsername(user.getUsername());
+      newUser.setFirstName(user.getFirstName());
       newUser.setLastName(user.getLastName());
       newUser.setEmail(user.getEmail());
       newUser.setPassword(user.getPassword());
@@ -122,8 +147,15 @@ public class UserService {
       newUser.setYear(year.get());
       newUser.setSemester(semester.get());
       newUser.setRole(role.get());
-      User updatedEntity = userDao.save(newUser);
-      return Optional.of(updatedEntity);
+      User newEntity = userDao.save(newUser);
+      String userKey = String.format("USER%s", newEntity.getId());
+      Optional<User> cachedEntity = redisCacheService.setValue(userKey, newEntity);
+      if (cachedEntity.isEmpty()) {
+        log.error("Failed to cache User {}", newEntity.getId());
+      } else {
+        log.info("User {} cached", newEntity.getId());
+      }
+      return Optional.of(newEntity);
     }
   }
 
@@ -147,6 +179,7 @@ public class UserService {
       return Optional.empty();
     } else {
       User updatedUser = oldUserData.get();
+      updatedUser.setUsername(user.getUsername());
       updatedUser.setFirstName(user.getFirstName());
       updatedUser.setLastName(user.getLastName());
       updatedUser.setEmail(user.getEmail());
@@ -156,6 +189,13 @@ public class UserService {
       updatedUser.setSemester(semester.get());
       updatedUser.setRole(role.get());
       User updatedEntity = userDao.save(updatedUser);
+      String userKey = String.format("USER%s", updatedEntity.getId());
+      Optional<User> cachedEntity = redisCacheService.updateValue(userKey, updatedEntity);
+      if (cachedEntity.isEmpty()) {
+        log.error("Failed to update User {} in cache", updatedEntity.getId());
+      } else {
+        log.info("User {} updated in cache", updatedEntity.getId());
+      }
       return Optional.of(updatedEntity);
     }
   }
