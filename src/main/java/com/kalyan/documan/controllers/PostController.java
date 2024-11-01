@@ -47,6 +47,20 @@ public class PostController {
       return postService
           .getAllPosts()
           .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
+    } catch (Exception e) {
+      log.error(e.toString());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while processing your request");
+    }
+  }
+
+  @GetMapping("/user")
+  public ResponseEntity<?> getPostsByUser(@RequestParam("userId") Integer userId) {
+    try {
+      return postService
+          .getPostsByUser(userId)
+          .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     } catch (Exception e) {
       log.error(e.toString());

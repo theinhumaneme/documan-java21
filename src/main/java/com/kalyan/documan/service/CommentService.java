@@ -67,7 +67,7 @@ public class CommentService {
     return Optional.of(commentDao.findAll());
   }
 
-  public Optional<List<Comment>> getCommentsByUserId(Integer userId) {
+  public Optional<List<Comment>> getCommentsByUser(Integer userId) {
     List<Comment> comments = commentDao.getCommentsByUserId(userId);
     if (!comments.isEmpty()) {
       return Optional.of(comments);
@@ -75,7 +75,7 @@ public class CommentService {
     return Optional.empty();
   }
 
-  public Optional<List<Comment>> getCommentsByPostId(Integer postId) {
+  public Optional<List<Comment>> getCommentsByPost(Integer postId) {
     List<Comment> comments = commentDao.getCommentsByPostId(postId);
     if (!comments.isEmpty()) {
       return Optional.of(comments);

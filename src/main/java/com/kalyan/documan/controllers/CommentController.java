@@ -55,6 +55,34 @@ public class CommentController {
     }
   }
 
+  @GetMapping("/user")
+  public ResponseEntity<?> getCommentsByUser(@RequestParam("userId") Integer userId) {
+    try {
+      return commentService
+          .getCommentsByUser(userId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
+    } catch (Exception e) {
+      log.error(e.toString());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while processing your request");
+    }
+  }
+
+  @GetMapping("/post")
+  public ResponseEntity<?> getCommentsByPost(@RequestParam("postId") Integer postId) {
+    try {
+      return commentService
+          .getCommentsByPost(postId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
+    } catch (Exception e) {
+      log.error(e.toString());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while processing your request");
+    }
+  }
+
   @PostMapping
   public ResponseEntity<?> createComment(
       @RequestBody Comment comment,

@@ -8,7 +8,6 @@ package com.kalyan.documan.service;
 
 import com.kalyan.documan.dao.PostDao;
 import com.kalyan.documan.dao.UserDao;
-import com.kalyan.documan.entity.Comment;
 import com.kalyan.documan.entity.Post;
 import com.kalyan.documan.entity.User;
 import java.util.List;
@@ -67,10 +66,6 @@ public class PostService {
 
   public Optional<List<Post>> getPostsByUser(Integer userId) {
     return Optional.of(postDao.getPostsByUserId(userId));
-  }
-
-  public Optional<List<Comment>> getPostComments(Integer postId) {
-    return commentService.getCommentsByPostId(postId);
   }
 
   public Optional<Post> createPost(Post post, Integer userId) {
