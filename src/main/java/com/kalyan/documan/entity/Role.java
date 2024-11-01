@@ -29,7 +29,7 @@ public class Role {
 
   @NotNull
   @Column(name = "name", unique = true, nullable = false)
-  private String name = "regular";
+  private String name;
 
   @JsonIgnore
   @OneToMany(mappedBy = "role", fetch = FetchType.LAZY)
