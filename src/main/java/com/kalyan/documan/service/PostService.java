@@ -117,4 +117,18 @@ public class PostService {
       return Optional.of(updatedEntity);
     }
   }
+
+  public Optional<Post> deletePost(Integer postId) {
+    Optional<Post> oldPost = postDao.findById(postId);
+    if (oldPost.isEmpty()) {
+      return Optional.empty();
+    }
+    Post deletedComment = oldPost.get();
+    postDao.delete(oldPost.get());
+    String commentKey = String.format("COMMENT%s", deletedComment.getId());
+    log.info("Comment {} deletion from cache started", deletedComment.getId());
+    redisCacheService.deleteValue(commentKey);
+    log.info("Comment {} deleted from cache ", deletedComment.getId());
+    return Optional.of(deletedComment);
+  }
 }

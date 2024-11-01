@@ -1,0 +1,15 @@
+meta {
+  name: POST delete
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{host}}/api/v1/post?postId=3
+  body: none
+  auth: none
+}
+
+params:query {
+  postId: 3
+}

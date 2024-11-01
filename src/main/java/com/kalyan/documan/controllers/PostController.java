@@ -101,4 +101,18 @@ public class PostController {
           .body("An error occurred while applying the vote");
     }
   }
+
+  @DeleteMapping()
+  public ResponseEntity<?> deleteComment(@RequestParam(value = "postId") Integer postId) {
+    try {
+      return postService
+          .deletePost(postId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    } catch (Exception e) {
+      log.error(e.toString());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while processing your request");
+    }
+  }
 }

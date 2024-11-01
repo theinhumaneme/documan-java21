@@ -195,9 +195,9 @@ public class UserService {
       User deletedUser = user.get();
       userDao.delete(user.get());
       String userKey = String.format("USER%s", deletedUser.getId());
-      log.info("User {} deletion started", deletedUser.getId());
+      log.info("User {} deletion from cache started", deletedUser.getId());
       redisCacheService.deleteValue(userKey);
-      log.info("User {} deleted", deletedUser.getId());
+      log.info("User {} deleted from cache ", deletedUser.getId());
       return Optional.of(deletedUser);
     }
     return Optional.empty();

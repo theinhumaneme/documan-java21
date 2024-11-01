@@ -26,7 +26,7 @@ public class UserController {
     this.userService = userService;
   }
 
-  @GetMapping("/id")
+  @GetMapping()
   public ResponseEntity<?> getUser(@RequestParam(value = "userId") Integer userId) {
     try {
       return userService
@@ -91,7 +91,7 @@ public class UserController {
     }
   }
 
-  @DeleteMapping("/id")
+  @DeleteMapping()
   public ResponseEntity<?> deleteUser(@RequestParam(value = "userId") Integer userId) {
     try {
       return userService

@@ -125,4 +125,18 @@ public class CommentService {
       return Optional.of(updatedComment);
     }
   }
+
+  public Optional<Comment> deleteComment(Integer commentId) {
+    Optional<Comment> oldComment = commentDao.findById(commentId);
+    if (oldComment.isEmpty()) {
+      return Optional.empty();
+    }
+    Comment deletedComment = oldComment.get();
+    commentDao.delete(oldComment.get());
+    String commentKey = String.format("COMMENT%s", deletedComment.getId());
+    log.info("Comment {} deletion from cache started", deletedComment.getId());
+    redisCacheService.deleteValue(commentKey);
+    log.info("Comment {} deleted from cache ", deletedComment.getId());
+    return Optional.of(deletedComment);
+  }
 }
