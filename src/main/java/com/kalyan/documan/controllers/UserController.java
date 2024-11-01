@@ -27,8 +27,7 @@ public class UserController {
   }
 
   @GetMapping("/id")
-  public ResponseEntity<?> getUser(
-      @RequestParam(value = "userId", required = true) Integer userId) {
+  public ResponseEntity<?> getUser(@RequestParam(value = "userId") Integer userId) {
     try {
       return userService
           .findById(userId)
@@ -89,6 +88,20 @@ public class UserController {
       log.error(e.toString());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred while processing the user.");
+    }
+  }
+
+  @DeleteMapping("/id")
+  public ResponseEntity<?> deleteUser(@RequestParam(value = "userId") Integer userId) {
+    try {
+      return userService
+          .deleteUser(userId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    } catch (Exception e) {
+      log.error(e.toString());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while processing your request");
     }
   }
 }

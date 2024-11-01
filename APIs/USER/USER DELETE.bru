@@ -1,0 +1,15 @@
+meta {
+  name: USER DELETE
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{host}}/api/v1/user/id?userId=2
+  body: none
+  auth: none
+}
+
+params:query {
+  userId: 2
+}

@@ -188,4 +188,18 @@ public class UserService {
       return Optional.of(updatedEntity);
     }
   }
+
+  public Optional<User> deleteUser(Integer userId) {
+    Optional<User> user = userDao.findById(userId);
+    if (user.isPresent()) {
+      User deletedUser = user.get();
+      userDao.delete(user.get());
+      String userKey = String.format("USER%s", deletedUser.getId());
+      log.info("User {} deletion started", deletedUser.getId());
+      redisCacheService.deleteValue(userKey);
+      log.info("User {} deleted", deletedUser.getId());
+      return Optional.of(deletedUser);
+    }
+    return Optional.empty();
+  }
 }
