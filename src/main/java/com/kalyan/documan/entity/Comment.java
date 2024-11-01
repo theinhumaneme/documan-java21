@@ -56,7 +56,7 @@ public class Comment {
 
   @JsonIgnore
   @JoinColumn(name = "user_id", nullable = false)
-  @ManyToOne(fetch = FetchType.EAGER)
+  @ManyToOne(fetch = FetchType.LAZY)
   @JsonBackReference(value = "user-comments")
   private User user;
 

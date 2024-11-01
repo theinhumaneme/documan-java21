@@ -61,7 +61,7 @@ public class Post {
   private User user;
 
   @JsonIgnore
-  @OneToMany(mappedBy = "post", fetch = FetchType.EAGER)
+  @OneToMany(mappedBy = "post", fetch = FetchType.LAZY)
   @JsonManagedReference(value = "post-comments")
   private List<Comment> comments;
 
