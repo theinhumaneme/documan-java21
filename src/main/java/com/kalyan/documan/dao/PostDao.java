@@ -12,6 +12,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 public interface PostDao extends JpaRepository<Post, Integer> {
-  @Query(value = "SELECT * FROM post where user_id =: userId", nativeQuery = true)
+  @Query(value = "SELECT * FROM post where user_id = :userId", nativeQuery = true)
   public List<Post> getPostsByUserId(int userId);
 }
