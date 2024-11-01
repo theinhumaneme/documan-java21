@@ -76,7 +76,9 @@ public class RedisCacheService {
   }
 
   public void deleteValue(String redisKey) {
-    redisTemplate.delete(redisKey);
+    if (Boolean.TRUE.equals(redisTemplate.hasKey(redisKey))) {
+      redisTemplate.delete(redisKey);
+    }
   }
 
   public <T> Optional<T> updateValue(String redisKey, T value) {
