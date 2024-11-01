@@ -50,3 +50,6 @@ logging:
       hibernate: warn # set to error in staging and production profiles
     web: warn # set to error in staging and production profiles
 
+springdoc:
+  swagger-ui:
+    operations-sorter: method
