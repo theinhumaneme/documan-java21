@@ -72,10 +72,14 @@ public class VoteService {
 
         if (isUpvote) {
           downvotedUsers.remove(user);
-          upvotedUsers.add(user);
+          if (!upvotedUsers.contains(user)) {
+            upvotedUsers.add(user);
+          }
         } else {
           upvotedUsers.remove(user);
-          downvotedUsers.add(user);
+          if (!downvotedUsers.contains(user)) {
+            downvotedUsers.add(user);
+          }
         }
         comment.setUpvotedUsers(upvotedUsers);
         comment.setDownvotedUsers(downvotedUsers);
@@ -89,10 +93,14 @@ public class VoteService {
 
         if (isUpvote) {
           downvotedUsers.remove(user);
-          upvotedUsers.add(user);
+          if (!upvotedUsers.contains(user)) {
+            upvotedUsers.add(user);
+          }
         } else {
           upvotedUsers.remove(user);
-          downvotedUsers.add(user);
+          if (!downvotedUsers.contains(user)) {
+            downvotedUsers.add(user);
+          }
         }
         post.setUpvotedUsers(upvotedUsers);
         post.setDownvotedUsers(downvotedUsers);
