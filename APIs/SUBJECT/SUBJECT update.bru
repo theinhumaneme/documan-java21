@@ -1,0 +1,27 @@
+meta {
+  name: SUBJECT update
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{host}}/api/v1/subject?subjectId=1&yearId=3&departmentId=3&semesterId=2
+  body: json
+  auth: none
+}
+
+params:query {
+  subjectId: 1
+  yearId: 3
+  departmentId: 3
+  semesterId: 2
+}
+
+body:json {
+  {
+    "name": "I am a new subject",
+    "code": "CT",
+    "lab": false,
+    "theory": true
+  }
+}

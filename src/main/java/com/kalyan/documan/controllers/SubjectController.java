@@ -6,6 +6,7 @@
 // sublicense, and/or sell copies of the software.
 package com.kalyan.documan.controllers;
 
+import com.kalyan.documan.entity.Subject;
 import com.kalyan.documan.service.SubjectService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,7 +63,7 @@ public class SubjectController {
       return subjectService
           .getSubjects(departmentId, yearId, semesterId)
           .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
     } catch (Exception e) {
       log.error(e.toString());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -71,13 +72,49 @@ public class SubjectController {
   }
 
   @PostMapping
-  public ResponseEntity<?> createSubject(@RequestParam("subject") Long subjectId) {
+  public ResponseEntity<?> createSubject(
+      @RequestBody Subject subject,
+      @RequestParam("departmentId") Integer departmentId,
+      @RequestParam("yearId") Integer yearId,
+      @RequestParam("semesterId") Integer semesterId) {
     try {
-      if (subjectId == null) {
-        return ResponseEntity.status(HttpStatus.OK).body(("Expected Subject, received none"));
-      } else {
-        return ResponseEntity.status(HttpStatus.OK).body("Here is your Subject");
-      }
+      return subjectService
+          .createSubject(subject, departmentId, yearId, semesterId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
+    } catch (Exception e) {
+      log.error(e.toString());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while processing the subject.");
+    }
+  }
+
+  @PutMapping
+  public ResponseEntity<?> updateSubject(
+      @RequestBody Subject subject,
+      @RequestParam("subjectId") Integer subjectId,
+      @RequestParam("departmentId") Integer departmentId,
+      @RequestParam("yearId") Integer yearId,
+      @RequestParam("semesterId") Integer semesterId) {
+    try {
+      return subjectService
+          .updateSubject(subject, subjectId, departmentId, yearId, semesterId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
+    } catch (Exception e) {
+      log.error(e.toString());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while processing the subject.");
+    }
+  }
+
+  @DeleteMapping
+  public ResponseEntity<?> deleteSubject(@RequestParam("subjectId") Integer subjectId) {
+    try {
+      return subjectService
+          .deleteSubject(subjectId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
     } catch (Exception e) {
       log.error(e.toString());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

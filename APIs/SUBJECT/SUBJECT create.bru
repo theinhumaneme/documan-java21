@@ -1,0 +1,26 @@
+meta {
+  name: SUBJECT create
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{host}}/api/v1/subject?yearId=3&departmentId=3&semesterId=2
+  body: json
+  auth: none
+}
+
+params:query {
+  yearId: 3
+  departmentId: 3
+  semesterId: 2
+}
+
+body:json {
+  {
+    "name": "Circuit Theory",
+    "code": "CT",
+    "lab": false,
+    "theory": true
+  }
+}

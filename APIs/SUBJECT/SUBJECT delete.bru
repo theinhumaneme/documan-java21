@@ -1,0 +1,24 @@
+meta {
+  name: SUBJECT delete
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{host}}/api/v1/subject?subjectId=1
+  body: json
+  auth: none
+}
+
+params:query {
+  subjectId: 1
+}
+
+body:json {
+  {
+    "name": "Circuit Theory",
+    "code": "CT",
+    "lab": false,
+    "theory": true
+  }
+}
