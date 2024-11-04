@@ -29,3 +29,4 @@ logs/
 .mvn/
 *.iml
 persist
+src/main/resources/application-documan-secrets.yml
