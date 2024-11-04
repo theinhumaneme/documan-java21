@@ -1,18 +1,18 @@
 meta {
-  name: COMMENT upvote
+  name: POST remove upvote
   type: http
   seq: 8
 }
 
 post {
-  url: {{host}}/api/v1/comment/vote?userId=1&commentId=1&voteType=upvote
+  url: {{host}}/api/v1/post/vote/remove?userId=1&postId=1&voteType=upvote
   body: json
   auth: none
 }
 
 params:query {
   userId: 1
-  commentId: 1
+  postId: 1
   voteType: upvote
 }
 

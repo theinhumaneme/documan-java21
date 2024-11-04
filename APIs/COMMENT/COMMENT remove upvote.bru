@@ -1,11 +1,11 @@
 meta {
-  name: COMMENT upvote
+  name: COMMENT remove upvote
   type: http
-  seq: 8
+  seq: 10
 }
 
 post {
-  url: {{host}}/api/v1/comment/vote?userId=1&commentId=1&voteType=upvote
+  url: {{host}}/api/v1/comment/vote/remove?userId=1&commentId=1&voteType=upvote
   body: json
   auth: none
 }
