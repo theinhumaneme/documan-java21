@@ -115,7 +115,7 @@ public class CommentController {
     }
   }
 
-  @PostMapping("vote")
+  @PostMapping("/vote")
   public ResponseEntity<?> voteComment(
       @RequestParam("voteType") String voteType,
       @RequestParam("commentId") Integer commentId,
@@ -123,6 +123,23 @@ public class CommentController {
     try {
       return voteService
           .voteCommment(userId, commentId, voteType)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
+    } catch (Exception e) {
+      log.error(e.toString());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while applying the vote");
+    }
+  }
+
+  @PostMapping("/vote/remove")
+  public ResponseEntity<?> removeVoteComment(
+      @RequestParam("voteType") String voteType,
+      @RequestParam("commentId") Integer commentId,
+      @RequestParam("userId") Integer userId) {
+    try {
+      return voteService
+          .removeVoteCommment(userId, commentId, voteType)
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
     } catch (Exception e) {

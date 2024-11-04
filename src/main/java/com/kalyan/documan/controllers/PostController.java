@@ -99,7 +99,7 @@ public class PostController {
     }
   }
 
-  @PostMapping("vote")
+  @PostMapping("/vote")
   public ResponseEntity<?> votePost(
       @RequestParam("voteType") String voteType,
       @RequestParam("postId") Integer postId,
@@ -107,6 +107,23 @@ public class PostController {
     try {
       return voteService
           .votePost(userId, postId, voteType)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
+    } catch (Exception e) {
+      log.error(e.toString());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while applying the vote");
+    }
+  }
+
+  @PostMapping("/vote/remove")
+  public ResponseEntity<?> removeVotePost(
+      @RequestParam("voteType") String voteType,
+      @RequestParam("postId") Integer postId,
+      @RequestParam("userId") Integer userId) {
+    try {
+      return voteService
+          .removeVotePost(userId, postId, voteType)
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
     } catch (Exception e) {

@@ -63,6 +63,36 @@ public class VoteService {
     }
   }
 
+  public Optional<Comment> removeVoteCommment(Integer userId, Integer commentId, String voteType) {
+    Optional<User> user = userDao.findById(userId);
+    Optional<Comment> comment = commentDao.findById(commentId);
+    if (user.isPresent() && comment.isPresent()) {
+      Comment voteComment = comment.get();
+      return switch (voteType) {
+        case "upvote" -> removeVote(voteComment, user.get(), true);
+        case "downvote" -> removeVote(voteComment, user.get(), false);
+        default -> Optional.empty();
+      };
+    } else {
+      return Optional.empty();
+    }
+  }
+
+  public Optional<Post> removeVotePost(Integer userId, Integer postId, String voteType) {
+    Optional<User> user = userDao.findById(userId);
+    Optional<Post> post = postDao.findById(postId);
+    if (user.isPresent() && post.isPresent()) {
+      Post votePost = post.get();
+      return switch (voteType) {
+        case "upvote" -> removeVote(votePost, user.get(), true);
+        case "downvote" -> removeVote(votePost, user.get(), false);
+        default -> Optional.empty();
+      };
+    } else {
+      return Optional.empty();
+    }
+  }
+
   private <T> Optional<T> applyVote(T votable, User user, boolean isUpvote) {
     try {
       // Check if the votable is a Post
@@ -104,6 +134,37 @@ public class VoteService {
         }
         post.setUpvotedUsers(upvotedUsers);
         post.setDownvotedUsers(downvotedUsers);
+        return Optional.of((T) postDao.save(post));
+      }
+    } catch (Exception e) {
+      log.error(e.toString());
+    }
+    return Optional.empty();
+  }
+
+  private <T> Optional<T> removeVote(T votable, User user, boolean isUpvote) {
+    try {
+      if (votable instanceof Comment comment) {
+        if (isUpvote) {
+          List<User> upVotedUsers = comment.getUpvotedUsers();
+          upVotedUsers.remove(user);
+          comment.setUpvotedUsers(upVotedUsers);
+        } else {
+          List<User> downVotedUsers = comment.getDownvotedUsers();
+          downVotedUsers.remove(user);
+          comment.setDownvotedUsers(downVotedUsers);
+        }
+        return Optional.of((T) commentDao.save(comment));
+      } else if (votable instanceof Post post) {
+        if (isUpvote) {
+          List<User> upVotedUsers = post.getUpvotedUsers();
+          upVotedUsers.remove(user);
+          post.setUpvotedUsers(upVotedUsers);
+        } else {
+          List<User> downVotedUsers = post.getDownvotedUsers();
+          downVotedUsers.remove(user);
+          post.setDownvotedUsers(downVotedUsers);
+        }
         return Optional.of((T) postDao.save(post));
       }
     } catch (Exception e) {
