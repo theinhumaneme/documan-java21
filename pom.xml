@@ -77,6 +77,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>s3</artifactId>
+			<version>2.29.6</version>
+		</dependency>
     </dependencies>
 	<dependencyManagement>
 		<dependencies>
@@ -96,7 +101,7 @@
 				<activeByDefault>true</activeByDefault>
 			</activation>
 			<properties>
-				<spring.profiles.active>documan</spring.profiles.active>
+				<spring.profiles.active>documan-secrets</spring.profiles.active>
 			</properties>
 		</profile>
 	</profiles>
