@@ -1,0 +1,22 @@
+meta {
+  name: POST favourite
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{host}}/api/v1/post/favourite?userId=1&postId=1
+  body: json
+  auth: none
+}
+
+params:query {
+  userId: 1
+  postId: 1
+}
+
+body:json {
+  {
+    "content": "Hello I am a commment"
+  }
+}

@@ -7,6 +7,7 @@
 package com.kalyan.documan.controllers;
 
 import com.kalyan.documan.entity.Post;
+import com.kalyan.documan.service.FavouriteService;
 import com.kalyan.documan.service.PostService;
 import com.kalyan.documan.service.VoteService;
 import org.slf4j.Logger;
@@ -21,10 +22,13 @@ public class PostController {
   private static final Logger log = LoggerFactory.getLogger(PostController.class);
   private final PostService postService;
   private final VoteService voteService;
+  private final FavouriteService favouriteService;
 
-  public PostController(PostService postService, VoteService voteService) {
+  public PostController(
+      PostService postService, VoteService voteService, FavouriteService favouriteService) {
     this.postService = postService;
     this.voteService = voteService;
+    this.favouriteService = favouriteService;
   }
 
   @GetMapping
@@ -124,6 +128,36 @@ public class PostController {
     try {
       return voteService
           .removeVotePost(userId, postId, voteType)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
+    } catch (Exception e) {
+      log.error(e.toString());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while applying the vote");
+    }
+  }
+
+  @PostMapping("/favourite")
+  public ResponseEntity<?> favouritePost(
+      @RequestParam("postId") Integer postId, @RequestParam("userId") Integer userId) {
+    try {
+      return favouriteService
+          .favouritePost(postId, userId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
+    } catch (Exception e) {
+      log.error(e.toString());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while applying the vote");
+    }
+  }
+
+  @PostMapping("/favourite/remove")
+  public ResponseEntity<?> removeFavouritePost(
+      @RequestParam("postId") Integer postId, @RequestParam("userId") Integer userId) {
+    try {
+      return favouriteService
+          .removeFavouritePost(postId, userId)
           .map(ResponseEntity::ok)
           .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
     } catch (Exception e) {

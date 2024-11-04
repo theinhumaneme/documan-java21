@@ -1,0 +1,22 @@
+meta {
+  name: POST remove favourite
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{host}}/api/v1/post/favourite/remove?userId=1&postId=1
+  body: json
+  auth: none
+}
+
+params:query {
+  userId: 1
+  postId: 1
+}
+
+body:json {
+  {
+    "content": "Hello I am a commment"
+  }
+}
