@@ -10,41 +10,63 @@ import com.kalyan.documan.dao.DepartmentDao;
 import com.kalyan.documan.dao.SemesterDao;
 import com.kalyan.documan.dao.SubjectDao;
 import com.kalyan.documan.dao.YearDao;
-import com.kalyan.documan.entity.Department;
-import com.kalyan.documan.entity.Semester;
-import com.kalyan.documan.entity.Subject;
-import com.kalyan.documan.entity.Year;
+import com.kalyan.documan.entity.*;
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SubjectService {
 
+  private static final Logger log = LoggerFactory.getLogger(SubjectService.class);
   private final SubjectDao subjectDao;
   private final DepartmentDao departmentDao;
   private final SemesterDao semesterDao;
   private final YearDao yearDao;
+  private final RedisCacheService redisCacheService;
 
   @Autowired
   public SubjectService(
       SubjectDao subjectDao,
       DepartmentDao departmentDao,
       SemesterDao semesterDao,
-      YearDao yearDao) {
+      YearDao yearDao,
+      RedisCacheService redisCacheService) {
     this.subjectDao = subjectDao;
     this.departmentDao = departmentDao;
     this.semesterDao = semesterDao;
     this.yearDao = yearDao;
+    this.redisCacheService = redisCacheService;
+  }
+
+  public Optional<Subject> getSubjectById(Integer id) {
+    String subjectKey = String.format("SUBJECT%s", id);
+    Optional<Subject> cachedEntity = redisCacheService.getValue(subjectKey, Subject.class);
+    if (cachedEntity.isEmpty()) {
+      log.error("Subject {} not found in cache", id);
+      Optional<Subject> subject = subjectDao.findById(id);
+      if (subject.isPresent()) {
+        Optional<Subject> cachedSubject = redisCacheService.setValue(subjectKey, subject.get());
+        if (cachedSubject.isEmpty()) {
+          log.error("Failed to cache Subject {}", id);
+        } else {
+          log.info("cached Subject {}", id);
+        }
+        return subject; // return user from db cache if exists
+      } else {
+        return Optional.empty();
+      }
+    } else {
+      log.info("Subject {} found in cache", id);
+    }
+    return cachedEntity;
   }
 
   public Optional<List<Subject>> getAllSubjects() {
     return Optional.of(subjectDao.findAll());
-  }
-
-  public Optional<Subject> getSubjectById(Integer id) {
-    return subjectDao.findById(id);
   }
 
   public Optional<List<Subject>> getSubjects(
@@ -75,7 +97,15 @@ public class SubjectService {
       newSubject.setName(subject.getName());
       newSubject.setLab(subject.isLab());
       newSubject.setTheory(subject.isTheory());
-      return Optional.of(subjectDao.save(newSubject));
+      Subject newEntity = subjectDao.save(newSubject);
+      String subjectKey = String.format("SUBJECT%s", newEntity.getId());
+      Optional<Subject> cachedEntity = redisCacheService.setValue(subjectKey, newEntity);
+      if (cachedEntity.isEmpty()) {
+        log.error("Failed to cache Subject {}", newEntity.getId());
+      } else {
+        log.info("Subject {} cached", newEntity.getId());
+      }
+      return Optional.of(newEntity);
     }
     return Optional.empty();
   }
@@ -103,7 +133,15 @@ public class SubjectService {
       updatedSubject.setName(subject.getName());
       updatedSubject.setLab(subject.isLab());
       updatedSubject.setTheory(subject.isTheory());
-      return Optional.of(subjectDao.save(updatedSubject));
+      Subject updatedEntity = subjectDao.save(updatedSubject);
+      String subjectKey = String.format("SUBJECT%s", updatedEntity.getId());
+      Optional<Subject> cachedEntity = redisCacheService.updateValue(subjectKey, updatedEntity);
+      if (cachedEntity.isEmpty()) {
+        log.error("Failed to update Subject {} in cache", updatedEntity.getId());
+      } else {
+        log.info("Subject {} updated in cache", updatedEntity.getId());
+      }
+      return Optional.of(updatedEntity);
     }
     return Optional.empty();
   }
@@ -113,7 +151,11 @@ public class SubjectService {
     if (subject.isPresent()) {
       Subject deletedSubject = subject.get();
       subjectDao.delete(deletedSubject);
-      return subject;
+      String subjectKey = String.format("SUBJECT%s", deletedSubject.getId());
+      log.info("Subject {} deletion from cache started", deletedSubject.getId());
+      redisCacheService.deleteValue(subjectKey);
+      log.info("Subject {} deleted from cache ", deletedSubject.getId());
+      return Optional.of(deletedSubject);
     }
     return Optional.empty();
   }
