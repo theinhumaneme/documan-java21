@@ -15,19 +15,18 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
-import software.amazon.awssdk.services.s3.model.*;
 
 @Configuration
 public class CloudflareR2Config {
 
   @Value("${cloudflare.r2.access-key-id}")
-  private static String cloudflareR2AccessKeyId;
+  private String cloudflareR2AccessKeyId;
 
   @Value("${cloudflare.r2.secret-access-key}")
-  private static String cloudflareR2SecretAccessKey;
+  private String cloudflareR2SecretAccessKey;
 
   @Value("${cloudflare.r2.endpoint}")
-  private static String cloudflareR2Endpoint;
+  private String cloudflareR2Endpoint;
 
   @Bean
   public S3Client s3Client() {

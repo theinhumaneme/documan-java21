@@ -1,0 +1,19 @@
+meta {
+  name: FILE upload
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{host}}/api/v1/file?subjectId=2
+  body: multipartForm
+  auth: none
+}
+
+params:query {
+  subjectId: 2
+}
+
+body:multipart-form {
+  file: @file()
+}
