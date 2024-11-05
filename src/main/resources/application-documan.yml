@@ -1,3 +1,12 @@
+cloudflare:
+  r2:
+    endpoint: <-R2 ENDPOINT->
+    access-key-id: <-ACCESS KEY->
+    secret-access-key: <-SECRET ACCESS KEY->
+    files-bucket: <-BUCKET NAME->
+    files-bucket-public-access-url: <-BUCKET PUBLIC ACCESS URL->
+    user-bucket: <-BUCKET NAME->
+
 spring:
   devtools:
     add-properties: false
