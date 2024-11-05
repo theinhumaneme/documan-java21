@@ -59,37 +59,25 @@ public class CloudflareR2Service {
       if (subject.isEmpty() && file.getOriginalFilename() != null) {
         return Optional.empty();
       } else {
-        com.kalyan.documan.entity.File fileEntity = new com.kalyan.documan.entity.File();
         StringBuilder fileName = new StringBuilder();
-        StringBuilder fileURL = new StringBuilder();
         fileName
-            .append(file.getOriginalFilename().replace(" ", "_"))
+            .append(file.getOriginalFilename().replace(" ", "-"))
             .append("_")
-            .append(UUID.randomUUID());
-        fileEntity.setName(file.getOriginalFilename().toString());
-        fileEntity.setSize(file.getSize());
-        fileEntity.setSubject(subject.get());
-        try {
-          PutObjectRequest uploadFileRequest =
-              PutObjectRequest.builder()
-                  .bucket(documanFilesBucketName)
-                  .acl(ObjectCannedACL.PUBLIC_READ)
-                  .key(fileName.toString())
-                  .contentType(file.getContentType())
-                  .build();
-          File convertedFile = convertMultiPartToFile(file);
-          s3Client.putObject(uploadFileRequest, RequestBody.fromFile(convertedFile));
-          convertedFile.delete();
-        } catch (Exception e) {
-          log.error(e.toString());
-          return Optional.empty();
+            .append(UUID.randomUUID().toString().replace("-", ""));
+        if (uploadR2Object(fileName.toString(), file)) {
+          com.kalyan.documan.entity.File fileEntity = new com.kalyan.documan.entity.File();
+          StringBuilder fileURL = new StringBuilder();
+          fileEntity.setName(file.getOriginalFilename().toString());
+          fileEntity.setSize(file.getSize());
+          fileEntity.setSubject(subject.get());
+          fileURL.append(documanFilesPublicAccessUrl).append("/").append(fileName);
+          fileEntity.setObjectName(fileName.toString());
+          fileEntity.setObjectURL(fileURL.toString());
+          fileDao.save(fileEntity);
+          return Optional.of(fileEntity);
         }
-        fileURL.append(documanFilesPublicAccessUrl).append("/").append(fileName);
-        fileEntity.setObjectName(fileName.toString());
-        fileEntity.setObjectURL(fileURL.toString());
-        fileDao.save(fileEntity);
-
-        return Optional.of(fileEntity);
+        // return empty if file cant be uploaded
+        return Optional.empty();
       }
     } catch (Exception e) {
       log.error(e.toString());
@@ -97,12 +85,38 @@ public class CloudflareR2Service {
     return Optional.empty();
   }
 
-  private File convertMultiPartToFile(MultipartFile file) throws IOException {
+  private boolean uploadR2Object(String fileName, MultipartFile file) {
+    try {
+      PutObjectRequest uploadFileRequest =
+          PutObjectRequest.builder()
+              .bucket(documanFilesBucketName)
+              .acl(ObjectCannedACL.PUBLIC_READ)
+              .key(fileName)
+              .contentType(file.getContentType())
+              .build();
+      Optional<File> convertedFileOptional = convertMultiPartToFile(file);
+      if (convertedFileOptional.isPresent()) {
+        File convertedFile = convertedFileOptional.get();
+        s3Client.putObject(uploadFileRequest, RequestBody.fromFile(convertedFile));
+        convertedFile.delete();
+        return true;
+      }
+      return false;
+    } catch (Exception e) {
+      log.error(e.toString());
+      return false;
+    }
+  }
+
+  private Optional<File> convertMultiPartToFile(MultipartFile file) throws IOException {
     File convFile = new File(Objects.requireNonNull(file.getOriginalFilename()));
-    FileOutputStream FileStream = new FileOutputStream(convFile);
-    FileStream.write(file.getBytes());
-    FileStream.close();
-    return convFile;
+    try (FileOutputStream fileStream = new FileOutputStream(convFile)) {
+      fileStream.write(file.getBytes());
+      return Optional.of(convFile);
+    } catch (Exception e) {
+      log.error(e.toString());
+    }
+    return Optional.empty();
   }
 
   public PutObjectResponse uploadProfilePicture(String key, Path filePath) {
