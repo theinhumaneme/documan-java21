@@ -11,7 +11,6 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
@@ -22,7 +21,8 @@ import org.hibernate.annotations.UpdateTimestamp;
     name = "file",
     indexes = {
       @Index(name = "idx_file_name", columnList = "name"),
-      @Index(name = "idx_file_uuid", columnList = "uuid", unique = true),
+      @Index(name = "idx_file_object_name", columnList = "object_name"),
+      @Index(name = "idx_file_object_url", columnList = "object_url"),
       @Index(name = "idx_file_subject_id", columnList = "subject_id")
     })
 @Getter
@@ -39,16 +39,16 @@ public class File {
   private String name;
 
   @NotNull
-  @Column(name = "size", nullable = false)
-  private Long size;
+  @Column(name = "object_name", nullable = false)
+  private String objectName;
 
   @NotNull
-  @Column(
-      name = "uuid",
-      unique = true,
-      nullable = false,
-      columnDefinition = "UUID DEFAULT gen_random_uuid()")
-  private UUID uuid = UUID.randomUUID();
+  @Column(name = "object_url", nullable = false)
+  private String objectURL;
+
+  @NotNull
+  @Column(name = "size", nullable = false)
+  private Long size;
 
   @NotNull
   @Column(name = "date_created", nullable = false)
