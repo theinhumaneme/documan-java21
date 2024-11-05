@@ -52,4 +52,18 @@ public class FileController {
           .body("An error occurred while processing the file.");
     }
   }
+
+  @DeleteMapping("/api/v1/file")
+  public ResponseEntity<?> deleteFile(@RequestParam("objectUID") String objectUID) {
+    try {
+      return cloudflareR2Service
+          .deleteFile(objectUID)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
+    } catch (Exception e) {
+      log.error(e.toString());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred while processing the file.");
+    }
+  }
 }

@@ -1,0 +1,19 @@
+meta {
+  name: FILE delete
+  type: http
+  seq: 2
+}
+
+delete {
+  url: {{host}}/api/v1/file?objectUID=ea2564dd41434d0cabb13d352f7f9586_main.tex
+  body: multipartForm
+  auth: none
+}
+
+params:query {
+  objectUID: ea2564dd41434d0cabb13d352f7f9586_main.tex
+}
+
+body:multipart-form {
+  file: @file(/home/kalyan/main.tex)
+}

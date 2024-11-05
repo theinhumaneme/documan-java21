@@ -24,9 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.*;
 
 @Service
 public class CloudflareR2Service {
@@ -61,10 +59,11 @@ public class CloudflareR2Service {
       } else {
         StringBuilder fileName = new StringBuilder();
         fileName
-            .append(file.getOriginalFilename().replace(" ", "-"))
+            .append(UUID.randomUUID().toString().replace("-", ""))
             .append("_")
-            .append(UUID.randomUUID().toString().replace("-", ""));
-        if (uploadR2Object(fileName.toString(), file)) {
+            .append(file.getOriginalFilename().replace(" ", "-"));
+
+        if (uploadR2Object(documanFilesBucketName, fileName.toString(), file)) {
           com.kalyan.documan.entity.File fileEntity = new com.kalyan.documan.entity.File();
           StringBuilder fileURL = new StringBuilder();
           fileEntity.setName(file.getOriginalFilename().toString());
@@ -85,11 +84,23 @@ public class CloudflareR2Service {
     return Optional.empty();
   }
 
-  private boolean uploadR2Object(String fileName, MultipartFile file) {
+  public Optional<String> deleteFile(String objectUID) {
+    try {
+      if (deleteR2Object(documanFilesBucketName, objectUID)) {
+        return Optional.of("File deleted successfully");
+      }
+      return Optional.empty();
+    } catch (Exception e) {
+      log.error(e.toString());
+      return Optional.empty();
+    }
+  }
+
+  private boolean uploadR2Object(String bucketName, String fileName, MultipartFile file) {
     try {
       PutObjectRequest uploadFileRequest =
           PutObjectRequest.builder()
-              .bucket(documanFilesBucketName)
+              .bucket(bucketName)
               .acl(ObjectCannedACL.PUBLIC_READ)
               .key(fileName)
               .contentType(file.getContentType())
@@ -97,13 +108,45 @@ public class CloudflareR2Service {
       Optional<File> convertedFileOptional = convertMultiPartToFile(file);
       if (convertedFileOptional.isPresent()) {
         File convertedFile = convertedFileOptional.get();
-        s3Client.putObject(uploadFileRequest, RequestBody.fromFile(convertedFile));
-        convertedFile.delete();
-        return true;
+        if (s3Client.putObject(uploadFileRequest, RequestBody.fromFile(convertedFile)) != null) {
+          convertedFile.delete();
+          return true;
+        }
+        // if the status of the put operation is null, uploading object failed
+        return false;
       }
+      // Multipart File conversion failed
       return false;
     } catch (Exception e) {
       log.error(e.toString());
+      return false;
+    }
+  }
+
+  public boolean deleteR2Object(String bucketName, String objectUID) {
+
+    try {
+      if (objectExists(bucketName, objectUID)) {
+        DeleteObjectRequest deleteObjectRequest =
+            DeleteObjectRequest.builder().bucket(bucketName).key(objectUID).build();
+        s3Client.deleteObject(deleteObjectRequest);
+        return true;
+      } else {
+        return false;
+      }
+
+    } catch (Exception e) {
+      log.error(e.toString());
+      return false;
+    }
+  }
+
+  public boolean objectExists(String bucket, String key) {
+    try {
+      HeadObjectResponse headResponse =
+          s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
+      return true;
+    } catch (NoSuchKeyException e) {
       return false;
     }
   }
