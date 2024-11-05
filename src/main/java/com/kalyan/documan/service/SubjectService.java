@@ -80,6 +80,11 @@ public class SubjectService {
     return Optional.empty();
   }
 
+  public Optional<List<File>> getSubjectFiles(Integer semesterId) {
+    Optional<Subject> subject = subjectDao.findById(semesterId);
+    return subject.map(Subject::getFiles);
+  }
+
   public Optional<Subject> createSubject(
       Subject subject, Integer departmentId, Integer yearId, Integer semesterId) {
     Optional<Department> department = departmentDao.findById(departmentId);

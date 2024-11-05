@@ -1,0 +1,19 @@
+meta {
+  name: FILE by subject
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{host}}/api/v1/file/subject?subjectId=2
+  body: multipartForm
+  auth: none
+}
+
+params:query {
+  subjectId: 2
+}
+
+body:multipart-form {
+  file: @file(/home/kalyan/main.tex)
+}

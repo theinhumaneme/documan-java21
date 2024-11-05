@@ -7,6 +7,7 @@
 package com.kalyan.documan.controllers;
 
 import com.kalyan.documan.service.CloudflareR2Service;
+import com.kalyan.documan.service.SubjectService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -14,23 +15,25 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+@RequestMapping("/api/v1/file")
 @RestController
 public class FileController {
   private static final Logger log = LoggerFactory.getLogger(FileController.class);
   private final CloudflareR2Service cloudflareR2Service;
+  private final SubjectService subjectService;
 
-  public FileController(CloudflareR2Service cloudflareR2Service) {
+  public FileController(CloudflareR2Service cloudflareR2Service, SubjectService subjectService) {
     this.cloudflareR2Service = cloudflareR2Service;
+    this.subjectService = subjectService;
   }
 
-  @GetMapping("/api/v1/file")
-  public ResponseEntity<?> getFile(@RequestParam("fileId") Long fileId) {
+  @GetMapping("/subject")
+  public ResponseEntity<?> getSubjectFiles(@RequestParam("subjectId") Integer subjectId) {
     try {
-      if (fileId != null) {
-        return ResponseEntity.status(HttpStatus.OK).body("Here is your File");
-      } else {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Expected parameter fileId");
-      }
+      return subjectService
+          .getSubjectFiles(subjectId)
+          .map(ResponseEntity::ok)
+          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     } catch (Exception e) {
       log.error(e.toString());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -38,7 +41,7 @@ public class FileController {
     }
   }
 
-  @PostMapping("/api/v1/file")
+  @PostMapping
   public ResponseEntity<?> createFile(
       @RequestParam("file") MultipartFile file, @RequestParam("subjectId") Integer subjectId) {
     try {
@@ -53,7 +56,7 @@ public class FileController {
     }
   }
 
-  @DeleteMapping("/api/v1/file")
+  @DeleteMapping
   public ResponseEntity<?> deleteFile(@RequestParam("objectUID") String objectUID) {
     try {
       return cloudflareR2Service
