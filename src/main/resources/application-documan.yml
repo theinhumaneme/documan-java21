@@ -12,6 +12,10 @@ spring:
     add-properties: false
   application:
     name: "documan"
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 25MB
   data:
     redis:
       password: password
