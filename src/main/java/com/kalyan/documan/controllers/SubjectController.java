@@ -41,7 +41,7 @@ public class SubjectController {
   }
 
   @GetMapping("/all")
-  public Object getAllSubjects() {
+  public ResponseEntity<?> getAllSubjects() {
     try {
       return subjectService
           .getAllSubjects()
@@ -55,7 +55,7 @@ public class SubjectController {
   }
 
   @GetMapping("/semester")
-  public Object getSubjects(
+  public ResponseEntity<?> getSubjects(
       @RequestParam("departmentId") Integer departmentId,
       @RequestParam("yearId") Integer yearId,
       @RequestParam("semesterId") Integer semesterId) {
