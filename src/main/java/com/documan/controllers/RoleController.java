@@ -6,93 +6,46 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.controllers;
 
+import com.documan.dto.response.RoleResponse;
+import com.documan.dto.response.UserResponse;
 import com.documan.service.RoleService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import java.util.List;
 import org.springframework.web.bind.annotation.*;
 
-@RestController()
+@RestController
 @RequestMapping("/api/v1/role")
 public class RoleController {
 
-  private static final Logger log = LoggerFactory.getLogger(RoleController.class);
   private final RoleService roleService;
 
   public RoleController(RoleService roleService) {
     this.roleService = roleService;
   }
 
-  @GetMapping()
-  public ResponseEntity<?> getRole(@RequestParam("roleId") Integer roleId) {
-    try {
-      return roleService
-          .getRoleById(roleId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-    } catch (Exception e) {
-      log.error(e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  @GetMapping
+  public RoleResponse getRole(@RequestParam("roleId") Integer roleId) {
+    return roleService.findById(roleId);
   }
 
   @GetMapping("/all")
-  public ResponseEntity<?> getAllRoles() {
-    try {
-      return roleService
-          .getAllRoles()
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-    } catch (Exception e) {
-      log.error(e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  public List<RoleResponse> getAllRoles() {
+    return roleService.findAll();
   }
 
   @GetMapping("/user")
-  public ResponseEntity<?> getUserRole(@RequestParam("userId") Integer userId) {
-    try {
-      return roleService
-          .getUserRole(userId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  public RoleResponse getUserRole(@RequestParam("userId") Integer userId) {
+    return roleService.findUserRole(userId);
   }
 
   @PutMapping("/promote")
-  public ResponseEntity<?> promoteUser(
+  public UserResponse promoteUser(
       @RequestParam("userId") Integer userId, @RequestParam("roleId") Integer roleId) {
-    try {
-      return roleService
-          .promoteUser(userId, roleId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+    return roleService.promote(userId, roleId);
   }
 
   @PutMapping("/demote")
-  public ResponseEntity<?> demoteUser(
+  public UserResponse demoteUser(
       @RequestParam("userId") Integer userId, @RequestParam("roleId") Integer roleId) {
-    try {
-      return roleService
-          .demoteUser(userId, roleId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+    return roleService.demote(userId, roleId);
   }
 }

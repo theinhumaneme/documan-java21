@@ -6,26 +6,30 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.entity;
 
-import com.fasterxml.jackson.annotation.*;
+import com.documan.search.outbox.SearchEntityListener;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 @Entity
+@EntityListeners(SearchEntityListener.class)
 @Table(
     name = "post",
     indexes = {
       @Index(name = "idx_post_title", columnList = "title"),
-      @Index(name = "idx_post_user_id", columnList = "user_id")
+      @Index(name = "idx_post_user_id", columnList = "user_id"),
+      @Index(name = "idx_post_date_created", columnList = "date_created")
     })
 @Getter
 @Setter
-public class Post {
+public non-sealed class Post implements Votable {
 
   @Id
   @Column(name = "id")
@@ -44,63 +48,36 @@ public class Post {
   @Column(name = "content", nullable = false, columnDefinition = "TEXT")
   private String content;
 
-  @NotNull
-  @Column(name = "date_created", nullable = false)
+  /**
+   * Denormalised tallies. Votes are applied with atomic {@code UPDATE ... SET count = count + ?}
+   * statements so casting a single vote never loads the whole voter collection.
+   */
+  @Column(name = "upvote_count", nullable = false, columnDefinition = "bigint default 0")
+  private long upvoteCount;
+
+  @Column(name = "downvote_count", nullable = false, columnDefinition = "bigint default 0")
+  private long downvoteCount;
+
+  @Column(name = "favourite_count", nullable = false, columnDefinition = "bigint default 0")
+  private long favouriteCount;
+
+  @Version
+  @Column(name = "version", nullable = false, columnDefinition = "bigint default 0")
+  private long version;
+
+  @Column(name = "date_created", nullable = false, updatable = false)
   @CreationTimestamp
   private OffsetDateTime dateCreated;
 
-  @NotNull
   @Column(name = "date_modified", nullable = false)
   @UpdateTimestamp
   private OffsetDateTime dateModified;
 
-  @JsonIgnore
   @JoinColumn(name = "user_id", nullable = false)
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JsonBackReference(value = "user-posts")
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
   private User user;
 
-  @JsonIgnore
-  @OneToMany(mappedBy = "post", fetch = FetchType.LAZY)
-  @JsonManagedReference(value = "post-comments")
-  private List<Comment> comments;
-
-  // users who have favourited the post
-  @JsonIgnore
-  @ManyToMany()
-  @JoinTable(
-      name = "favourite_posts",
-      joinColumns = @JoinColumn(name = "post_id"),
-      inverseJoinColumns = @JoinColumn(name = "user_id"),
-      indexes = {
-        @Index(name = "idx_favourite_posts_post_id", columnList = "post_id"),
-        @Index(name = "idx_favourite_posts_user_id", columnList = "user_id")
-      })
-  private List<User> favouritedUsers;
-
-  // Posts upvoted by the user
-  @JsonIgnore
-  @ManyToMany()
-  @JoinTable(
-      name = "upvoted_posts",
-      joinColumns = @JoinColumn(name = "post_id"),
-      inverseJoinColumns = @JoinColumn(name = "user_id"),
-      indexes = {
-        @Index(name = "idx_upvoted_posts_post_id", columnList = "post_id"),
-        @Index(name = "idx_upvoted_posts_user_id", columnList = "user_id")
-      })
-  private List<User> upvotedUsers;
-
-  // Posts downvoted by the user
-  @JsonIgnore
-  @ManyToMany()
-  @JoinTable(
-      name = "downvoted_posts",
-      joinColumns = @JoinColumn(name = "post_id"),
-      inverseJoinColumns = @JoinColumn(name = "user_id"),
-      indexes = {
-        @Index(name = "idx_downvoted_posts_post_id", columnList = "post_id"),
-        @Index(name = "idx_downvoted_posts_user_id", columnList = "user_id")
-      })
-  private List<User> downvotedUsers;
+  @BatchSize(size = 50)
+  @OneToMany(mappedBy = "post", fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
+  private List<Comment> comments = new ArrayList<>();
 }

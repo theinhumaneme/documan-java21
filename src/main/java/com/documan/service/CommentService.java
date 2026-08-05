@@ -6,137 +6,112 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.service;
 
+import com.documan.config.CacheConfig;
 import com.documan.dao.CommentDao;
 import com.documan.dao.PostDao;
 import com.documan.dao.UserDao;
+import com.documan.dto.request.CreateCommentRequest;
+import com.documan.dto.request.UpdateCommentRequest;
+import com.documan.dto.response.CommentResponse;
+import com.documan.dto.response.PageResponse;
 import com.documan.entity.Comment;
 import com.documan.entity.Post;
 import com.documan.entity.User;
-import java.util.List;
-import java.util.Optional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.documan.exception.ResourceNotFoundException;
+import com.documan.mapper.CommentMapper;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Transactional(readOnly = true)
 public class CommentService {
 
-  private static final Logger log = LoggerFactory.getLogger(CommentService.class);
   private final CommentDao commentDao;
   private final UserDao userDao;
   private final PostDao postDao;
-  private final RedisCacheService redisCacheService;
+  private final CommentMapper commentMapper;
 
-  @Autowired
   public CommentService(
-      CommentDao commentDao,
-      UserDao userDao,
-      PostDao postDao,
-      RedisCacheService redisCacheService) {
+      CommentDao commentDao, UserDao userDao, PostDao postDao, CommentMapper commentMapper) {
     this.commentDao = commentDao;
     this.userDao = userDao;
     this.postDao = postDao;
-    this.redisCacheService = redisCacheService;
+    this.commentMapper = commentMapper;
   }
 
-  public Optional<Comment> getComment(Integer commentId) {
-    String commentKey = String.format("COMMENT%s", commentId);
-    Optional<Comment> cachedEntity = redisCacheService.getValue(commentKey, Comment.class);
-    if (cachedEntity.isEmpty()) {
-      log.error("Comment {} not found in cache", commentId);
-      Optional<Comment> comment = commentDao.findById(commentId);
-      if (comment.isPresent()) {
-        Optional<Comment> cachedComment = redisCacheService.setValue(commentKey, comment.get());
-        if (cachedComment.isEmpty()) {
-          log.error("Failed to cache Comment {}", commentId);
-        } else {
-          log.info("cached Comment {}", commentId);
-        }
-        return comment; // return user from db cache if exists
-      } else {
-        return Optional.empty();
-      }
-    } else {
-      log.info("Comment {} found in cache", commentId);
-    }
-    return cachedEntity;
+  @Cacheable(cacheNames = CacheConfig.COMMENTS, key = "#commentId")
+  public CommentResponse findById(Integer commentId) {
+    return commentMapper.toResponse(requireComment(commentId));
   }
 
-  public Optional<List<Comment>> getAllComments() {
-    return Optional.of(commentDao.findAll());
+  public PageResponse<CommentResponse> findAll(Pageable pageable) {
+    return PageResponse.from(commentDao.findAll(pageable).map(commentMapper::toResponse));
   }
 
-  public Optional<List<Comment>> getCommentsByUser(Integer userId) {
-    List<Comment> comments = commentDao.getCommentsByUserId(userId);
-    if (!comments.isEmpty()) {
-      return Optional.of(comments);
-    }
-    return Optional.empty();
+  /**
+   * An author or post with no comments yields an empty page. The previous implementation translated
+   * "no rows" into an empty {@code Optional}, which the controller then rendered as 404.
+   */
+  public PageResponse<CommentResponse> findByUser(Integer userId, Pageable pageable) {
+    requireUserExists(userId);
+    return PageResponse.from(
+        commentDao.findByUserId(userId, pageable).map(commentMapper::toResponse));
   }
 
-  public Optional<List<Comment>> getCommentsByPost(Integer postId) {
-    List<Comment> comments = commentDao.getCommentsByPostId(postId);
-    if (!comments.isEmpty()) {
-      return Optional.of(comments);
-    }
-    return Optional.empty();
+  public PageResponse<CommentResponse> findByPost(Integer postId, Pageable pageable) {
+    requirePostExists(postId);
+    return PageResponse.from(
+        commentDao.findByPostId(postId, pageable).map(commentMapper::toResponse));
   }
 
-  public Optional<Comment> addComment(Comment comment, Integer userId, Integer postId) {
-    Optional<User> user = userDao.findById(userId);
-    Optional<Post> post = postDao.findById(postId);
-    if (user.isEmpty() || post.isEmpty()) {
-      return Optional.empty();
-    } else if (comment.getId() != null) {
-      return Optional.empty();
-    } else {
-      Comment newComment = new Comment();
-      newComment.setContent(comment.getContent());
-      newComment.setUser(user.get());
-      newComment.setPost(post.get());
-      Comment savedComment = commentDao.save(newComment);
-      String commentKey = String.format("COMMENT%s", savedComment.getId());
-      Optional<Comment> cachedEntity = redisCacheService.updateValue(commentKey, savedComment);
-      if (cachedEntity.isEmpty()) {
-        log.error("Failed to add Comment {} in cache", savedComment.getId());
-      } else {
-        log.info("Comment {} added in cache", savedComment.getId());
-      }
-      return Optional.of(savedComment);
-    }
+  @Transactional
+  @CachePut(cacheNames = CacheConfig.COMMENTS, key = "#result.id()")
+  public CommentResponse create(CreateCommentRequest request, Integer userId, Integer postId) {
+    User author =
+        userDao.findById(userId).orElseThrow(() -> new ResourceNotFoundException("User", userId));
+    Post post =
+        postDao.findById(postId).orElseThrow(() -> new ResourceNotFoundException("Post", postId));
+
+    Comment comment = new Comment();
+    comment.setContent(request.content());
+    comment.setUser(author);
+    comment.setPost(post);
+    return commentMapper.toResponse(commentDao.save(comment));
   }
 
-  public Optional<Comment> updateComment(Comment comment, Integer commentId) {
-    Optional<Comment> oldComment = commentDao.findById(commentId);
-    if (oldComment.isEmpty()) {
-      return Optional.empty();
-    } else {
-      Comment updatedComment = oldComment.get();
-      updatedComment.setContent(comment.getContent());
-      Comment updatedEntity = commentDao.save(updatedComment);
-      String commentKey = String.format("COMMENT%s", updatedEntity.getId());
-      Optional<Comment> cachedEntity = redisCacheService.updateValue(commentKey, updatedEntity);
-      if (cachedEntity.isEmpty()) {
-        log.error("Failed to update Comment {} in cache", updatedEntity.getId());
-      } else {
-        log.info("Comment {} updated in cache", updatedEntity.getId());
-      }
-      return Optional.of(updatedComment);
+  @Transactional
+  @CachePut(cacheNames = CacheConfig.COMMENTS, key = "#commentId")
+  public CommentResponse update(Integer commentId, UpdateCommentRequest request) {
+    Comment comment = requireComment(commentId);
+    comment.setContent(request.content());
+    return commentMapper.toResponse(commentDao.save(comment));
+  }
+
+  @Transactional
+  @CacheEvict(cacheNames = CacheConfig.COMMENTS, key = "#commentId")
+  public void delete(Integer commentId) {
+    commentDao.delete(requireComment(commentId));
+  }
+
+  private Comment requireComment(Integer commentId) {
+    return commentDao
+        .findWithUserById(commentId)
+        .orElseThrow(() -> new ResourceNotFoundException("Comment", commentId));
+  }
+
+  private void requireUserExists(Integer userId) {
+    if (!userDao.existsById(userId)) {
+      throw new ResourceNotFoundException("User", userId);
     }
   }
 
-  public Optional<Comment> deleteComment(Integer commentId) {
-    Optional<Comment> oldComment = commentDao.findById(commentId);
-    if (oldComment.isEmpty()) {
-      return Optional.empty();
+  private void requirePostExists(Integer postId) {
+    if (!postDao.existsById(postId)) {
+      throw new ResourceNotFoundException("Post", postId);
     }
-    Comment deletedComment = oldComment.get();
-    commentDao.delete(oldComment.get());
-    String commentKey = String.format("COMMENT%s", deletedComment.getId());
-    log.info("Comment {} deletion from cache started", deletedComment.getId());
-    redisCacheService.deleteValue(commentKey);
-    log.info("Comment {} deleted from cache ", deletedComment.getId());
-    return Optional.of(deletedComment);
   }
 }

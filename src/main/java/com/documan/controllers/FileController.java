@@ -6,67 +6,44 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.controllers;
 
-import com.documan.service.CloudflareR2Service;
-import com.documan.service.SubjectService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.documan.dto.response.FileResponse;
+import com.documan.dto.response.PageResponse;
+import com.documan.service.FileService;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-@RequestMapping("/api/v1/file")
 @RestController
+@RequestMapping("/api/v1/file")
 public class FileController {
-  private static final Logger log = LoggerFactory.getLogger(FileController.class);
-  private final CloudflareR2Service cloudflareR2Service;
-  private final SubjectService subjectService;
 
-  public FileController(CloudflareR2Service cloudflareR2Service, SubjectService subjectService) {
-    this.cloudflareR2Service = cloudflareR2Service;
-    this.subjectService = subjectService;
+  private final FileService fileService;
+
+  public FileController(FileService fileService) {
+    this.fileService = fileService;
   }
 
   @GetMapping("/subject")
-  public ResponseEntity<?> getSubjectFiles(@RequestParam("subjectId") Integer subjectId) {
-    try {
-      return subjectService
-          .getSubjectFiles(subjectId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  public PageResponse<FileResponse> getSubjectFiles(
+      @RequestParam("subjectId") Integer subjectId,
+      @PageableDefault(size = 50, sort = "name", direction = Sort.Direction.ASC)
+          Pageable pageable) {
+    return fileService.findBySubject(subjectId, pageable);
   }
 
   @PostMapping
-  public ResponseEntity<?> createFile(
+  @ResponseStatus(HttpStatus.CREATED)
+  public FileResponse createFile(
       @RequestParam("file") MultipartFile file, @RequestParam("subjectId") Integer subjectId) {
-    try {
-      return cloudflareR2Service
-          .uploadFile(file, subjectId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing the file.");
-    }
+    return fileService.upload(file, subjectId);
   }
 
   @DeleteMapping
-  public ResponseEntity<?> deleteFile(@RequestParam("objectUID") String objectUID) {
-    try {
-      return cloudflareR2Service
-          .deleteFile(objectUID)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing the file.");
-    }
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void deleteFile(@RequestParam("objectUID") String objectUID) {
+    fileService.delete(objectUID);
   }
 }

@@ -6,165 +6,122 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.service;
 
-import com.documan.dao.FileDao;
-import com.documan.dao.SubjectDao;
-import com.documan.entity.Subject;
-import java.io.File;
-import java.io.FileOutputStream;
+import com.documan.exception.StorageException;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
+/**
+ * Thin gateway over the object store. Business rules and database writes live in {@link
+ * FileService}; this class only moves bytes and reports failures as {@link StorageException}.
+ *
+ * <p>Uploads stream straight from the multipart part to R2. The previous implementation copied
+ * every upload into a file in the process working directory, named after the client-supplied
+ * filename, which meant concurrent uploads of the same name clobbered one another and a failure
+ * between write and delete leaked the file.
+ */
 @Service
 public class CloudflareR2Service {
 
   private static final Logger log = LoggerFactory.getLogger(CloudflareR2Service.class);
+
   private final S3Client s3Client;
-  private final SubjectDao subjectDao;
-  private final FileDao fileDao;
 
   @Value("${cloudflare.r2.files-bucket}")
-  private String documanFilesBucketName;
+  private String filesBucket;
 
   @Value("${cloudflare.r2.user-bucket}")
-  private String documanUserDataBucketName;
+  private String userBucket;
 
-  @Value("${cloudflare.r2.files-bucket-public-access-url}")
-  private String documanFilesPublicAccessUrl;
+  /**
+   * R2 does not implement S3 ACLs; public exposure is configured on the bucket or via a custom
+   * domain. Left switchable so existing buckets that expect the canned ACL keep working.
+   */
+  @Value("${cloudflare.r2.public-read-acl:true}")
+  private boolean publicReadAcl;
 
-  @Autowired
-  public CloudflareR2Service(S3Client s3Client, SubjectDao subjectDao, FileDao fileDao) {
+  public CloudflareR2Service(S3Client s3Client) {
     this.s3Client = s3Client;
-    this.subjectDao = subjectDao;
-    this.fileDao = fileDao;
   }
 
-  public Optional<com.documan.entity.File> uploadFile(MultipartFile file, Integer subjectId) {
-    try {
-      Optional<Subject> subject = subjectDao.findById(subjectId);
-      if (subject.isEmpty() && file.getOriginalFilename() != null) {
-        return Optional.empty();
-      } else {
-        StringBuilder fileName = new StringBuilder();
-        fileName
-            .append(UUID.randomUUID().toString().replace("-", ""))
-            .append("_")
-            .append(file.getOriginalFilename().replace(" ", "-"));
-
-        if (uploadR2Object(documanFilesBucketName, fileName.toString(), file)) {
-          com.documan.entity.File fileEntity = new com.documan.entity.File();
-          StringBuilder fileURL = new StringBuilder();
-          fileEntity.setName(file.getOriginalFilename().toString());
-          fileEntity.setSize(file.getSize());
-          fileEntity.setSubject(subject.get());
-          fileURL.append(documanFilesPublicAccessUrl).append("/").append(fileName);
-          fileEntity.setObjectName(fileName.toString());
-          fileEntity.setObjectURL(fileURL.toString());
-          fileDao.save(fileEntity);
-          return Optional.of(fileEntity);
-        }
-        // return empty if file cant be uploaded
-        return Optional.empty();
-      }
-    } catch (Exception e) {
-      log.error(e.toString());
+  public void uploadFile(String objectName, MultipartFile file) {
+    PutObjectRequest.Builder request =
+        PutObjectRequest.builder()
+            .bucket(filesBucket)
+            .key(objectName)
+            .contentType(file.getContentType())
+            .contentLength(file.getSize());
+    if (publicReadAcl) {
+      request.acl(ObjectCannedACL.PUBLIC_READ);
     }
-    return Optional.empty();
-  }
 
-  public Optional<String> deleteFile(String objectUID) {
     try {
-      if (deleteR2Object(documanFilesBucketName, objectUID)) {
-        return Optional.of("File deleted successfully");
-      }
-      return Optional.empty();
-    } catch (Exception e) {
-      log.error(e.toString());
-      return Optional.empty();
+      s3Client.putObject(
+          request.build(), RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+    } catch (IOException | S3Exception e) {
+      throw new StorageException("Failed to upload object '%s'".formatted(objectName), e);
     }
   }
 
-  private boolean uploadR2Object(String bucketName, String fileName, MultipartFile file) {
-    try {
-      PutObjectRequest uploadFileRequest =
-          PutObjectRequest.builder()
-              .bucket(bucketName)
-              .acl(ObjectCannedACL.PUBLIC_READ)
-              .key(fileName)
-              .contentType(file.getContentType())
-              .build();
-      Optional<File> convertedFileOptional = convertMultiPartToFile(file);
-      if (convertedFileOptional.isPresent()) {
-        File convertedFile = convertedFileOptional.get();
-        if (s3Client.putObject(uploadFileRequest, RequestBody.fromFile(convertedFile)) != null) {
-          convertedFile.delete();
-          return true;
-        }
-        // if the status of the put operation is null, uploading object failed
-        return false;
-      }
-      // Multipart File conversion failed
-      return false;
-    } catch (Exception e) {
-      log.error(e.toString());
+  /**
+   * @return {@code true} if the object existed and was removed.
+   */
+  public boolean deleteFile(String objectName) {
+    if (!objectExists(filesBucket, objectName)) {
       return false;
     }
-  }
-
-  public boolean deleteR2Object(String bucketName, String objectUID) {
-
     try {
-      if (objectExists(bucketName, objectUID)) {
-        DeleteObjectRequest deleteObjectRequest =
-            DeleteObjectRequest.builder().bucket(bucketName).key(objectUID).build();
-        s3Client.deleteObject(deleteObjectRequest);
-        return true;
-      } else {
-        return false;
-      }
-
-    } catch (Exception e) {
-      log.error(e.toString());
-      return false;
+      s3Client.deleteObject(
+          DeleteObjectRequest.builder().bucket(filesBucket).key(objectName).build());
+      return true;
+    } catch (S3Exception e) {
+      throw new StorageException("Failed to delete object '%s'".formatted(objectName), e);
     }
   }
 
   public boolean objectExists(String bucket, String key) {
     try {
-      HeadObjectResponse headResponse =
-          s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
+      s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
       return true;
     } catch (NoSuchKeyException e) {
       return false;
+    } catch (S3Exception e) {
+      if (e.statusCode() == 404) {
+        return false;
+      }
+      throw new StorageException("Failed to stat object '%s'".formatted(key), e);
     }
-  }
-
-  private Optional<File> convertMultiPartToFile(MultipartFile file) throws IOException {
-    File convFile = new File(Objects.requireNonNull(file.getOriginalFilename()));
-    try (FileOutputStream fileStream = new FileOutputStream(convFile)) {
-      fileStream.write(file.getBytes());
-      return Optional.of(convFile);
-    } catch (Exception e) {
-      log.error(e.toString());
-    }
-    return Optional.empty();
   }
 
   public PutObjectResponse uploadProfilePicture(String key, Path filePath) {
-    PutObjectRequest request =
-        PutObjectRequest.builder().bucket(documanUserDataBucketName).key(key).build();
+    try {
+      return s3Client.putObject(
+          PutObjectRequest.builder().bucket(userBucket).key(key).build(), filePath);
+    } catch (S3Exception e) {
+      throw new StorageException("Failed to upload profile picture '%s'".formatted(key), e);
+    }
+  }
 
-    return s3Client.putObject(request, filePath);
+  /** Best-effort cleanup used to avoid orphaning an object when the metadata write fails. */
+  void deleteQuietly(String objectName) {
+    try {
+      s3Client.deleteObject(
+          DeleteObjectRequest.builder().bucket(filesBucket).key(objectName).build());
+    } catch (RuntimeException e) {
+      log.error("Failed to clean up orphaned object '{}'", objectName, e);
+    }
   }
 }

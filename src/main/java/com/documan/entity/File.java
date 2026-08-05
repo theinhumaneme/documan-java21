@@ -6,23 +6,22 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.entity;
 
-import com.fasterxml.jackson.annotation.*;
+import com.documan.search.outbox.SearchEntityListener;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import java.time.OffsetDateTime;
-import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 @Entity
+@EntityListeners(SearchEntityListener.class)
 @Table(
     name = "file",
     indexes = {
       @Index(name = "idx_file_name", columnList = "name"),
-      @Index(name = "idx_file_object_name", columnList = "object_name"),
-      @Index(name = "idx_file_object_url", columnList = "object_url"),
+      @Index(name = "idx_file_object_name", columnList = "object_name", unique = true),
       @Index(name = "idx_file_subject_id", columnList = "subject_id")
     })
 @Getter
@@ -39,7 +38,7 @@ public class File {
   private String name;
 
   @NotNull
-  @Column(name = "object_name", nullable = false)
+  @Column(name = "object_name", nullable = false, unique = true)
   private String objectName;
 
   @NotNull
@@ -50,31 +49,22 @@ public class File {
   @Column(name = "size", nullable = false)
   private Long size;
 
-  @NotNull
-  @Column(name = "date_created", nullable = false)
+  @Column(name = "favourite_count", nullable = false, columnDefinition = "bigint default 0")
+  private long favouriteCount;
+
+  @Version
+  @Column(name = "version", nullable = false, columnDefinition = "bigint default 0")
+  private long version;
+
+  @Column(name = "date_created", nullable = false, updatable = false)
   @CreationTimestamp
   private OffsetDateTime dateCreated;
 
-  @NotNull
   @Column(name = "date_modified", nullable = false)
   @UpdateTimestamp
   private OffsetDateTime dateModified;
 
-  @JsonIgnore
   @JoinColumn(name = "subject_id", nullable = false)
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JsonBackReference(value = "subject-files")
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
   private Subject subject;
-
-  @JsonIgnore
-  @ManyToMany()
-  @JoinTable(
-      name = "favourite_files",
-      joinColumns = @JoinColumn(name = "file_id"),
-      inverseJoinColumns = @JoinColumn(name = "user_id"),
-      indexes = {
-        @Index(name = "idx_favourite_files_file_id", columnList = "file_id"),
-        @Index(name = "idx_favourite_files_user_id", columnList = "user_id")
-      })
-  private List<User> favouritedUsers;
 }

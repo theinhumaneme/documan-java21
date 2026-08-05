@@ -5,16 +5,13 @@ meta {
 }
 
 put {
-  url: {{host}}/api/v1/subject?subjectId=1&yearId=3&departmentId=3&semesterId=2
+  url: {{host}}/api/v1/subject?subjectId=1
   body: json
   auth: none
 }
 
 params:query {
   subjectId: 1
-  yearId: 3
-  departmentId: 3
-  semesterId: 2
 }
 
 body:json {
@@ -22,6 +19,9 @@ body:json {
     "name": "I am a new subject",
     "code": "CT",
     "lab": false,
-    "theory": true
+    "theory": true,
+    "departmentId": 3,
+    "yearId": 3,
+    "semesterId": 2
   }
 }

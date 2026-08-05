@@ -1,0 +1,11 @@
+meta {
+  name: USER favourite posts
+  type: http
+  seq: 14
+}
+
+get {
+  url: {{host}}/api/v1/user/favourites/posts?userId=1&page=0&size=20
+  body: none
+  auth: none
+}

@@ -6,102 +6,127 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.controllers;
 
-import com.documan.entity.User;
+import com.documan.dto.request.CreateUserRequest;
+import com.documan.dto.request.UpdateUserRequest;
+import com.documan.dto.response.*;
+import com.documan.entity.VoteType;
+import com.documan.service.FavouriteService;
 import com.documan.service.UserService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping(("/api/v1/user"))
+@RequestMapping("/api/v1/user")
 public class UserController {
-  private static final Logger log = LoggerFactory.getLogger(UserController.class);
-  private final UserService userService;
 
-  @Autowired
-  public UserController(UserService userService) {
+  private final UserService userService;
+  private final FavouriteService favouriteService;
+
+  public UserController(UserService userService, FavouriteService favouriteService) {
     this.userService = userService;
+    this.favouriteService = favouriteService;
   }
 
-  @GetMapping()
-  public ResponseEntity<?> getUser(@RequestParam(value = "userId") Integer userId) {
-    try {
-      return userService
-          .findById(userId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  @GetMapping
+  public UserResponse getUser(@RequestParam("userId") Integer userId) {
+    return userService.findById(userId);
   }
 
   @GetMapping("/username")
-  public ResponseEntity<?> getUser(@RequestParam("username") String username) {
-    try {
-      return userService
-          .findByUsername(username)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  public UserResponse getUserByUsername(@RequestParam("username") String username) {
+    return userService.findByUsername(username);
   }
 
-  @PostMapping()
-  public ResponseEntity<?> createUser(
-      @RequestBody User user,
-      @RequestParam("departmentId") Integer departmentId,
-      @RequestParam("yearId") Integer yearId,
-      @RequestParam("semesterId") Integer semesterId) {
-    try {
-      return userService
-          .createUser(user, departmentId, yearId, semesterId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing the user.");
-    }
+  @GetMapping("/all")
+  public PageResponse<UserResponse> getAllUsers(
+      @PageableDefault(size = 30, sort = "username") Pageable pageable) {
+    return userService.findAll(pageable);
   }
 
-  @PutMapping()
-  public ResponseEntity<?> updateUser(
-      @RequestBody User user,
+  @PostMapping
+  @ResponseStatus(HttpStatus.CREATED)
+  public UserResponse createUser(@Valid @RequestBody CreateUserRequest request) {
+    return userService.create(request);
+  }
+
+  @PutMapping
+  public UserResponse updateUser(
+      @Valid @RequestBody UpdateUserRequest request, @RequestParam("userId") Integer userId) {
+    return userService.update(userId, request);
+  }
+
+  @DeleteMapping
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void deleteUser(@RequestParam("userId") Integer userId) {
+    userService.delete(userId);
+  }
+
+  // Relationship views. These service methods existed but had no route.
+
+  @GetMapping("/posts")
+  public PageResponse<PostResponse> getUserPosts(
       @RequestParam("userId") Integer userId,
-      @RequestParam("departmentId") Integer departmentId,
-      @RequestParam("yearId") Integer yearId,
-      @RequestParam("semesterId") Integer semesterId) {
-    try {
-      return userService
-          .updateUser(user, userId, departmentId, yearId, semesterId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing the user.");
-    }
+      @PageableDefault(size = 20, sort = "dateCreated", direction = Sort.Direction.DESC)
+          Pageable pageable) {
+    return userService.findPosts(userId, pageable);
   }
 
-  @DeleteMapping()
-  public ResponseEntity<?> deleteUser(@RequestParam(value = "userId") Integer userId) {
-    try {
-      return userService
-          .deleteUser(userId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  @GetMapping("/comments")
+  public PageResponse<CommentResponse> getUserComments(
+      @RequestParam("userId") Integer userId,
+      @PageableDefault(size = 20, sort = "dateCreated", direction = Sort.Direction.DESC)
+          Pageable pageable) {
+    return userService.findComments(userId, pageable);
+  }
+
+  @GetMapping("/subjects")
+  public PageResponse<SubjectResponse> getUserSubjects(
+      @RequestParam("userId") Integer userId,
+      @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+    return userService.findSubjects(userId, pageable);
+  }
+
+  @GetMapping("/favourites/posts")
+  public PageResponse<PostResponse> getFavouritePosts(
+      @RequestParam("userId") Integer userId, @PageableDefault(size = 20) Pageable pageable) {
+    return userService.findFavouritePosts(userId, pageable);
+  }
+
+  @GetMapping("/favourites/files")
+  public PageResponse<FileResponse> getFavouriteFiles(
+      @RequestParam("userId") Integer userId, @PageableDefault(size = 20) Pageable pageable) {
+    return userService.findFavouriteFiles(userId, pageable);
+  }
+
+  @GetMapping("/votes/posts")
+  public PageResponse<PostResponse> getVotedPosts(
+      @RequestParam("userId") Integer userId,
+      @RequestParam("voteType") VoteType voteType,
+      @PageableDefault(size = 20) Pageable pageable) {
+    return userService.findVotedPosts(userId, voteType, pageable);
+  }
+
+  @GetMapping("/votes/comments")
+  public PageResponse<CommentResponse> getVotedComments(
+      @RequestParam("userId") Integer userId,
+      @RequestParam("voteType") VoteType voteType,
+      @PageableDefault(size = 20) Pageable pageable) {
+    return userService.findVotedComments(userId, voteType, pageable);
+  }
+
+  @PostMapping("/favourites/files")
+  public FileResponse favouriteFile(
+      @RequestParam("fileId") Integer fileId, @RequestParam("userId") Integer userId) {
+    return favouriteService.favouriteFile(fileId, userId);
+  }
+
+  @PostMapping("/favourites/files/remove")
+  public FileResponse removeFavouriteFile(
+      @RequestParam("fileId") Integer fileId, @RequestParam("userId") Integer userId) {
+    return favouriteService.removeFavouriteFile(fileId, userId);
   }
 }

@@ -1,0 +1,11 @@
+meta {
+  name: USER upvoted posts
+  type: http
+  seq: 16
+}
+
+get {
+  url: {{host}}/api/v1/user/votes/posts?userId=1&voteType=UPVOTE&page=0&size=20
+  body: none
+  auth: none
+}

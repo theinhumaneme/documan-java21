@@ -5,23 +5,21 @@ meta {
 }
 
 post {
-  url: {{host}}/api/v1/user?departmentId=1&yearId=1&semesterId=1
+  url: {{host}}/api/v1/user
   body: json
   auth: none
-}
-
-params:query {
-  departmentId: 1
-  yearId: 1
-  semesterId: 1
 }
 
 body:json {
   {
     "username": "lmaolam",
-    "firstName": "Kalyan",
     "password": "1234345464565",
+    "firstName": "Kalyan",
     "lastName": "Mudumby",
-    "email": "haha@gmail.com"
+    "email": "haha@gmail.com",
+    "departmentId": 1,
+    "yearId": 1,
+    "semesterId": 1,
+    "acceptedTermsOfService": true
   }
 }

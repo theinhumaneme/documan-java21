@@ -6,61 +6,96 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.service;
 
+import com.documan.config.CacheConfig;
 import com.documan.dao.RoleDao;
 import com.documan.dao.UserDao;
+import com.documan.dto.response.RoleResponse;
+import com.documan.dto.response.UserResponse;
 import com.documan.entity.Role;
 import com.documan.entity.User;
+import com.documan.exception.ResourceNotFoundException;
+import com.documan.mapper.ReferenceMapper;
+import com.documan.mapper.UserMapper;
 import java.util.List;
-import java.util.Optional;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Transactional(readOnly = true)
 public class RoleService {
 
   private final UserDao userDao;
   private final RoleDao roleDao;
+  private final ReferenceMapper referenceMapper;
+  private final UserMapper userMapper;
 
-  @Autowired
-  public RoleService(UserDao userDao, RoleDao roleDao) {
+  public RoleService(
+      UserDao userDao, RoleDao roleDao, ReferenceMapper referenceMapper, UserMapper userMapper) {
     this.userDao = userDao;
     this.roleDao = roleDao;
+    this.referenceMapper = referenceMapper;
+    this.userMapper = userMapper;
   }
 
-  public Optional<Role> getRoleById(Integer id) {
-    return roleDao.findById(id);
+  @Cacheable(cacheNames = CacheConfig.ROLES, key = "#roleId")
+  public RoleResponse findById(Integer roleId) {
+    return referenceMapper.toResponse(requireRole(roleId));
   }
 
-  public Optional<List<Role>> getAllRoles() {
-    return Optional.of(roleDao.findAll());
+  public List<RoleResponse> findAll() {
+    return roleDao.findAll().stream().map(referenceMapper::toResponse).toList();
   }
 
-  public Optional<Role> getUserRole(Integer userId) {
-    Optional<User> user = userDao.findById(userId);
-    return user.map(User::getRole);
+  public RoleResponse findUserRole(Integer userId) {
+    return referenceMapper.toResponse(requireUser(userId).getRole());
   }
 
-  public Optional<User> promoteUser(Integer userId, Integer roleId) {
-    Optional<Role> role = roleDao.findById(roleId);
-    Optional<User> user = userDao.findById(userId);
-    if (role.isPresent() && user.isPresent() && roleId > user.get().getRole().getId()) {
-      User promotedUser = user.get();
-      promotedUser.setRole(role.get());
-      return Optional.of(userDao.save(promotedUser));
-    } else {
-      return Optional.empty();
+  /**
+   * Role changes now evict the cached user. Previously a promoted or demoted user kept serving the
+   * stale role from {@code USER{id}} until the process restarted.
+   */
+  @Transactional
+  @CacheEvict(cacheNames = CacheConfig.USERS, key = "#userId")
+  public UserResponse promote(Integer userId, Integer roleId) {
+    return changeRole(userId, roleId, true);
+  }
+
+  @Transactional
+  @CacheEvict(cacheNames = CacheConfig.USERS, key = "#userId")
+  public UserResponse demote(Integer userId, Integer roleId) {
+    return changeRole(userId, roleId, false);
+  }
+
+  /** Privilege ordering is by numeric role id, matching the seeded regular/moderator/admin rows. */
+  private UserResponse changeRole(Integer userId, Integer roleId, boolean promoting) {
+    User user = requireUser(userId);
+    Role target = requireRole(roleId);
+    int current = user.getRole().getId();
+
+    if (promoting && roleId <= current) {
+      throw new IllegalArgumentException(
+          "Role %d does not rank above the user's current role %d".formatted(roleId, current));
     }
+    if (!promoting && roleId >= current) {
+      throw new IllegalArgumentException(
+          "Role %d does not rank below the user's current role %d".formatted(roleId, current));
+    }
+
+    user.setRole(target);
+    return userMapper.toResponse(userDao.save(user));
   }
 
-  public Optional<User> demoteUser(Integer userId, Integer roleId) {
-    Optional<Role> role = roleDao.findById(roleId);
-    Optional<User> user = userDao.findById(userId);
-    if (role.isPresent() && user.isPresent() && roleId < user.get().getRole().getId()) {
-      User demotedUser = user.get();
-      demotedUser.setRole(role.get());
-      return Optional.of(userDao.save(demotedUser));
-    } else {
-      return Optional.empty();
-    }
+  private Role requireRole(Integer roleId) {
+    return roleDao
+        .findById(roleId)
+        .orElseThrow(() -> new ResourceNotFoundException("Role", roleId));
+  }
+
+  private User requireUser(Integer userId) {
+    return userDao
+        .findById(userId)
+        .orElseThrow(() -> new ResourceNotFoundException("User", userId));
   }
 }

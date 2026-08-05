@@ -1,0 +1,11 @@
+meta {
+  name: USER upvoted comments
+  type: http
+  seq: 17
+}
+
+get {
+  url: {{host}}/api/v1/user/votes/comments?userId=1&voteType=UPVOTE&page=0&size=20
+  body: none
+  auth: none
+}

@@ -1,0 +1,1260 @@
+openapi: 3.1.0
+info:
+  title: Documan API
+  version: 1.0.0
+  description: |
+    REST API for organising academic subjects and files, and for the surrounding community
+    features (posts, comments, votes, favourites, users, roles).
+
+    This document is maintained by hand rather than generated at runtime. When an endpoint,
+    payload or status code changes, update it in the same commit.
+
+    Notes on conventions:
+      * Collection endpoints are paginated and return a `PageResponse` envelope.
+      * Errors use RFC 9457 `application/problem+json`.
+      * Identifiers are passed as query parameters.
+      * There is currently no authentication; every operation is reachable anonymously.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: User
+  - name: Post
+  - name: Comment
+  - name: Subject
+  - name: File
+  - name: Role
+  - name: Search
+    description: Full-text search backed by Meilisearch
+  - name: Reference
+    description: Department, year and semester lookup tables
+
+paths:
+  /api/v1/user:
+    get:
+      tags: [User]
+      summary: Fetch a user by id
+      parameters: [{ $ref: "#/components/parameters/UserId" }]
+      responses:
+        "200": { $ref: "#/components/responses/User" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [User]
+      summary: Create a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateUserRequest" }
+      responses:
+        "201": { $ref: "#/components/responses/User" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "409": { $ref: "#/components/responses/Conflict" }
+    put:
+      tags: [User]
+      summary: Update a user
+      description: A null `password` leaves the stored credential unchanged.
+      parameters: [{ $ref: "#/components/parameters/UserId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateUserRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/User" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+    delete:
+      tags: [User]
+      summary: Delete a user
+      description: Fails with 409 if the user still owns posts or comments.
+      parameters: [{ $ref: "#/components/parameters/UserId" }]
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /api/v1/user/username:
+    get:
+      tags: [User]
+      summary: Fetch a user by username
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/User" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/user/all:
+    get:
+      tags: [User]
+      summary: List users
+      parameters: [{ $ref: "#/components/parameters/Pageable" }]
+      responses:
+        "200": { $ref: "#/components/responses/UserPage" }
+
+  /api/v1/user/posts:
+    get:
+      tags: [User]
+      summary: Posts authored by a user
+      parameters:
+        - { $ref: "#/components/parameters/UserId" }
+        - { $ref: "#/components/parameters/Pageable" }
+      responses:
+        "200": { $ref: "#/components/responses/PostPage" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/user/comments:
+    get:
+      tags: [User]
+      summary: Comments authored by a user
+      parameters:
+        - { $ref: "#/components/parameters/UserId" }
+        - { $ref: "#/components/parameters/Pageable" }
+      responses:
+        "200": { $ref: "#/components/responses/CommentPage" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/user/subjects:
+    get:
+      tags: [User]
+      summary: Subjects for a user's department, year and semester
+      parameters:
+        - { $ref: "#/components/parameters/UserId" }
+        - { $ref: "#/components/parameters/Pageable" }
+      responses:
+        "200": { $ref: "#/components/responses/SubjectPage" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/user/favourites/posts:
+    get:
+      tags: [User]
+      summary: Posts a user has favourited
+      parameters:
+        - { $ref: "#/components/parameters/UserId" }
+        - { $ref: "#/components/parameters/Pageable" }
+      responses:
+        "200": { $ref: "#/components/responses/PostPage" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/user/favourites/files:
+    get:
+      tags: [User]
+      summary: Files a user has favourited
+      parameters:
+        - { $ref: "#/components/parameters/UserId" }
+        - { $ref: "#/components/parameters/Pageable" }
+      responses:
+        "200": { $ref: "#/components/responses/FilePage" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [User]
+      summary: Favourite a file
+      description: Idempotent; favouriting twice leaves the tally unchanged.
+      parameters:
+        - { $ref: "#/components/parameters/FileId" }
+        - { $ref: "#/components/parameters/UserId" }
+      responses:
+        "200": { $ref: "#/components/responses/File" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/user/favourites/files/remove:
+    post:
+      tags: [User]
+      summary: Remove a file favourite
+      parameters:
+        - { $ref: "#/components/parameters/FileId" }
+        - { $ref: "#/components/parameters/UserId" }
+      responses:
+        "200": { $ref: "#/components/responses/File" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/user/votes/posts:
+    get:
+      tags: [User]
+      summary: Posts a user has voted on, filtered by direction
+      parameters:
+        - { $ref: "#/components/parameters/UserId" }
+        - { $ref: "#/components/parameters/VoteType" }
+        - { $ref: "#/components/parameters/Pageable" }
+      responses:
+        "200": { $ref: "#/components/responses/PostPage" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/user/votes/comments:
+    get:
+      tags: [User]
+      summary: Comments a user has voted on, filtered by direction
+      parameters:
+        - { $ref: "#/components/parameters/UserId" }
+        - { $ref: "#/components/parameters/VoteType" }
+        - { $ref: "#/components/parameters/Pageable" }
+      responses:
+        "200": { $ref: "#/components/responses/CommentPage" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/post:
+    get:
+      tags: [Post]
+      summary: Fetch a post by id
+      parameters: [{ $ref: "#/components/parameters/PostId" }]
+      responses:
+        "200": { $ref: "#/components/responses/Post" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Post]
+      summary: Create a post
+      parameters: [{ $ref: "#/components/parameters/UserId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePostRequest" }
+      responses:
+        "201": { $ref: "#/components/responses/Post" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [Post]
+      summary: Update a post
+      parameters: [{ $ref: "#/components/parameters/PostId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePostRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/Post" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+    delete:
+      tags: [Post]
+      summary: Delete a post and its comments
+      parameters: [{ $ref: "#/components/parameters/PostId" }]
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/post/all:
+    get:
+      tags: [Post]
+      summary: List posts, newest first
+      parameters: [{ $ref: "#/components/parameters/Pageable" }]
+      responses:
+        "200": { $ref: "#/components/responses/PostPage" }
+
+  /api/v1/post/user:
+    get:
+      tags: [Post]
+      summary: List posts by author
+      parameters:
+        - { $ref: "#/components/parameters/UserId" }
+        - { $ref: "#/components/parameters/Pageable" }
+      responses:
+        "200": { $ref: "#/components/responses/PostPage" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/post/vote:
+    post:
+      tags: [Post]
+      summary: Cast or switch a vote on a post
+      description: |
+        Idempotent. Casting the same direction twice leaves the tallies unchanged; casting the
+        opposite direction moves the vote rather than adding a second one.
+      parameters:
+        - { $ref: "#/components/parameters/VoteType" }
+        - { $ref: "#/components/parameters/PostId" }
+        - { $ref: "#/components/parameters/UserId" }
+      responses:
+        "200": { $ref: "#/components/responses/Post" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/post/vote/remove:
+    post:
+      tags: [Post]
+      summary: Withdraw a vote from a post
+      parameters:
+        - { $ref: "#/components/parameters/VoteType" }
+        - { $ref: "#/components/parameters/PostId" }
+        - { $ref: "#/components/parameters/UserId" }
+      responses:
+        "200": { $ref: "#/components/responses/Post" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/post/favourite:
+    post:
+      tags: [Post]
+      summary: Favourite a post
+      parameters:
+        - { $ref: "#/components/parameters/PostId" }
+        - { $ref: "#/components/parameters/UserId" }
+      responses:
+        "200": { $ref: "#/components/responses/Post" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/post/favourite/remove:
+    post:
+      tags: [Post]
+      summary: Remove a post favourite
+      parameters:
+        - { $ref: "#/components/parameters/PostId" }
+        - { $ref: "#/components/parameters/UserId" }
+      responses:
+        "200": { $ref: "#/components/responses/Post" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/comment:
+    get:
+      tags: [Comment]
+      summary: Fetch a comment by id
+      parameters: [{ $ref: "#/components/parameters/CommentId" }]
+      responses:
+        "200": { $ref: "#/components/responses/Comment" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Comment]
+      summary: Add a comment to a post
+      parameters:
+        - { $ref: "#/components/parameters/UserId" }
+        - { $ref: "#/components/parameters/PostId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommentBody" }
+      responses:
+        "201": { $ref: "#/components/responses/Comment" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [Comment]
+      summary: Update a comment
+      parameters: [{ $ref: "#/components/parameters/CommentId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommentBody" }
+      responses:
+        "200": { $ref: "#/components/responses/Comment" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [Comment]
+      summary: Delete a comment
+      parameters: [{ $ref: "#/components/parameters/CommentId" }]
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/comment/all:
+    get:
+      tags: [Comment]
+      summary: List comments, newest first
+      parameters: [{ $ref: "#/components/parameters/Pageable" }]
+      responses:
+        "200": { $ref: "#/components/responses/CommentPage" }
+
+  /api/v1/comment/user:
+    get:
+      tags: [Comment]
+      summary: List comments by author
+      parameters:
+        - { $ref: "#/components/parameters/UserId" }
+        - { $ref: "#/components/parameters/Pageable" }
+      responses:
+        "200": { $ref: "#/components/responses/CommentPage" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/comment/post:
+    get:
+      tags: [Comment]
+      summary: List comments on a post
+      parameters:
+        - { $ref: "#/components/parameters/PostId" }
+        - { $ref: "#/components/parameters/Pageable" }
+      responses:
+        "200": { $ref: "#/components/responses/CommentPage" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/comment/vote:
+    post:
+      tags: [Comment]
+      summary: Cast or switch a vote on a comment
+      parameters:
+        - { $ref: "#/components/parameters/VoteType" }
+        - { $ref: "#/components/parameters/CommentId" }
+        - { $ref: "#/components/parameters/UserId" }
+      responses:
+        "200": { $ref: "#/components/responses/Comment" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/comment/vote/remove:
+    post:
+      tags: [Comment]
+      summary: Withdraw a vote from a comment
+      parameters:
+        - { $ref: "#/components/parameters/VoteType" }
+        - { $ref: "#/components/parameters/CommentId" }
+        - { $ref: "#/components/parameters/UserId" }
+      responses:
+        "200": { $ref: "#/components/responses/Comment" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/subject:
+    get:
+      tags: [Subject]
+      summary: Fetch a subject by id
+      parameters: [{ $ref: "#/components/parameters/SubjectId" }]
+      responses:
+        "200": { $ref: "#/components/responses/Subject" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Subject]
+      summary: Create a subject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubjectBody" }
+      responses:
+        "201": { $ref: "#/components/responses/Subject" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [Subject]
+      summary: Update a subject
+      parameters: [{ $ref: "#/components/parameters/SubjectId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubjectBody" }
+      responses:
+        "200": { $ref: "#/components/responses/Subject" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [Subject]
+      summary: Delete a subject
+      parameters: [{ $ref: "#/components/parameters/SubjectId" }]
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /api/v1/subject/all:
+    get:
+      tags: [Subject]
+      summary: List subjects
+      parameters: [{ $ref: "#/components/parameters/Pageable" }]
+      responses:
+        "200": { $ref: "#/components/responses/SubjectPage" }
+
+  /api/v1/subject/semester:
+    get:
+      tags: [Subject]
+      summary: List subjects for a department, year and semester
+      parameters:
+        - { $ref: "#/components/parameters/DepartmentId" }
+        - { $ref: "#/components/parameters/YearId" }
+        - { $ref: "#/components/parameters/SemesterId" }
+        - { $ref: "#/components/parameters/Pageable" }
+      responses:
+        "200": { $ref: "#/components/responses/SubjectPage" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/file/subject:
+    get:
+      tags: [File]
+      summary: List files attached to a subject
+      parameters:
+        - { $ref: "#/components/parameters/SubjectId" }
+        - { $ref: "#/components/parameters/Pageable" }
+      responses:
+        "200": { $ref: "#/components/responses/FilePage" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/file:
+    post:
+      tags: [File]
+      summary: Upload a file against a subject
+      description: |
+        The object key is a random prefix plus a sanitised form of the original filename. If the
+        metadata write fails the uploaded object is removed, so a partial failure does not leave
+        an unreferenced object in the bucket.
+      parameters: [{ $ref: "#/components/parameters/SubjectId" }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201": { $ref: "#/components/responses/File" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { $ref: "#/components/responses/StorageFailure" }
+    delete:
+      tags: [File]
+      summary: Delete a file
+      description: Removes both the stored object and its metadata row.
+      parameters:
+        - name: objectUID
+          in: query
+          required: true
+          description: The generated object key, as returned in `objectName`.
+          schema: { type: string }
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { $ref: "#/components/responses/StorageFailure" }
+
+  /api/v1/role:
+    get:
+      tags: [Role]
+      summary: Fetch a role by id
+      parameters:
+        - name: roleId
+          in: query
+          required: true
+          schema: { type: integer, format: int32 }
+      responses:
+        "200": { $ref: "#/components/responses/Role" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/role/all:
+    get:
+      tags: [Role]
+      summary: List roles
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RoleResponse" }
+
+  /api/v1/role/user:
+    get:
+      tags: [Role]
+      summary: Fetch the role assigned to a user
+      parameters: [{ $ref: "#/components/parameters/UserId" }]
+      responses:
+        "200": { $ref: "#/components/responses/Role" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/role/promote:
+    put:
+      tags: [Role]
+      summary: Move a user to a higher-ranked role
+      description: Privilege rank is the numeric role id. Fails if the target does not rank above the current role.
+      parameters:
+        - { $ref: "#/components/parameters/UserId" }
+        - { $ref: "#/components/parameters/RoleId" }
+      responses:
+        "200": { $ref: "#/components/responses/User" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/role/demote:
+    put:
+      tags: [Role]
+      summary: Move a user to a lower-ranked role
+      parameters:
+        - { $ref: "#/components/parameters/UserId" }
+        - { $ref: "#/components/parameters/RoleId" }
+      responses:
+        "200": { $ref: "#/components/responses/User" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/department:
+    get:
+      tags: [Reference]
+      summary: Fetch a department by id
+      parameters: [{ $ref: "#/components/parameters/DepartmentId" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DepartmentResponse" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/department/all:
+    get:
+      tags: [Reference]
+      summary: List departments
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DepartmentResponse" }
+
+  /api/v1/year:
+    get:
+      tags: [Reference]
+      summary: Fetch a year by id
+      parameters: [{ $ref: "#/components/parameters/YearId" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/YearResponse" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/year/all:
+    get:
+      tags: [Reference]
+      summary: List years
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/YearResponse" }
+
+  /api/v1/semester:
+    get:
+      tags: [Reference]
+      summary: Fetch a semester by id
+      parameters: [{ $ref: "#/components/parameters/SemesterId" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SemesterResponse" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/semester/all:
+    get:
+      tags: [Reference]
+      summary: List semesters
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SemesterResponse" }
+
+  /api/v1/search/files:
+    get:
+      tags: [Search]
+      summary: Full-text search over files
+      description: |
+        Matches on filename, extension and the denormalised subject name and code. Returns `503`
+        with `Retry-After` when Meilisearch is unavailable; the endpoint is absent entirely when
+        `documan.search.enabled` is false.
+      parameters:
+        - { $ref: "#/components/parameters/SearchQuery" }
+        - { name: subjectId, in: query, required: false, schema: { type: integer } }
+        - { name: departmentId, in: query, required: false, schema: { type: integer } }
+        - { name: yearId, in: query, required: false, schema: { type: integer } }
+        - { name: semesterId, in: query, required: false, schema: { type: integer } }
+        - { name: extension, in: query, required: false, schema: { type: string }, description: "Lower-case, without the dot." }
+        - { name: lab, in: query, required: false, schema: { type: boolean } }
+        - { name: theory, in: query, required: false, schema: { type: boolean } }
+        - { $ref: "#/components/parameters/SearchPage" }
+        - { $ref: "#/components/parameters/SearchSize" }
+        - { $ref: "#/components/parameters/SearchSort" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: "#/components/schemas/SearchResponse" }
+                  - type: object
+                    properties:
+                      hits: { type: array, items: { $ref: "#/components/schemas/FileDocument" } }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "503": { $ref: "#/components/responses/SearchUnavailable" }
+
+  /api/v1/search/subjects:
+    get:
+      tags: [Search]
+      summary: Full-text search over subjects
+      parameters:
+        - { $ref: "#/components/parameters/SearchQuery" }
+        - { name: departmentId, in: query, required: false, schema: { type: integer } }
+        - { name: yearId, in: query, required: false, schema: { type: integer } }
+        - { name: semesterId, in: query, required: false, schema: { type: integer } }
+        - { name: lab, in: query, required: false, schema: { type: boolean } }
+        - { name: theory, in: query, required: false, schema: { type: boolean } }
+        - { $ref: "#/components/parameters/SearchPage" }
+        - { $ref: "#/components/parameters/SearchSize" }
+        - { $ref: "#/components/parameters/SearchSort" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: "#/components/schemas/SearchResponse" }
+                  - type: object
+                    properties:
+                      hits: { type: array, items: { $ref: "#/components/schemas/SubjectDocument" } }
+        "503": { $ref: "#/components/responses/SearchUnavailable" }
+
+  /api/v1/search/posts:
+    get:
+      tags: [Search]
+      summary: Full-text search over posts
+      description: Matches on title, description, body and author name. Bodies are truncated in the index.
+      parameters:
+        - { $ref: "#/components/parameters/SearchQuery" }
+        - { name: authorId, in: query, required: false, schema: { type: integer } }
+        - { $ref: "#/components/parameters/SearchPage" }
+        - { $ref: "#/components/parameters/SearchSize" }
+        - { $ref: "#/components/parameters/SearchSort" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: "#/components/schemas/SearchResponse" }
+                  - type: object
+                    properties:
+                      hits: { type: array, items: { $ref: "#/components/schemas/PostDocument" } }
+        "503": { $ref: "#/components/responses/SearchUnavailable" }
+
+  /api/v1/search/comments:
+    get:
+      tags: [Search]
+      summary: Full-text search over comments
+      parameters:
+        - { $ref: "#/components/parameters/SearchQuery" }
+        - { name: postId, in: query, required: false, schema: { type: integer } }
+        - { name: authorId, in: query, required: false, schema: { type: integer } }
+        - { $ref: "#/components/parameters/SearchPage" }
+        - { $ref: "#/components/parameters/SearchSize" }
+        - { $ref: "#/components/parameters/SearchSort" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: "#/components/schemas/SearchResponse" }
+                  - type: object
+                    properties:
+                      hits: { type: array, items: { $ref: "#/components/schemas/CommentDocument" } }
+        "503": { $ref: "#/components/responses/SearchUnavailable" }
+
+components:
+  parameters:
+    SearchQuery:
+      name: q
+      in: query
+      required: false
+      description: Free-text query. Omit or leave blank to browse with filters only.
+      schema: { type: string }
+    SearchPage:
+      name: page
+      in: query
+      required: false
+      schema: { type: integer, minimum: 0, default: 0 }
+    SearchSize:
+      name: size
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    SearchSort:
+      name: sort
+      in: query
+      required: false
+      description: "Meilisearch sort expression over a sortable attribute, e.g. `dateCreated:desc`."
+      schema: { type: string }
+    UserId:
+      name: userId
+      in: query
+      required: true
+      schema: { type: integer, format: int32 }
+    PostId:
+      name: postId
+      in: query
+      required: true
+      schema: { type: integer, format: int32 }
+    CommentId:
+      name: commentId
+      in: query
+      required: true
+      schema: { type: integer, format: int32 }
+    SubjectId:
+      name: subjectId
+      in: query
+      required: true
+      schema: { type: integer, format: int32 }
+    FileId:
+      name: fileId
+      in: query
+      required: true
+      schema: { type: integer, format: int32 }
+    RoleId:
+      name: roleId
+      in: query
+      required: true
+      schema: { type: integer, format: int32 }
+    DepartmentId:
+      name: departmentId
+      in: query
+      required: true
+      schema: { type: integer, format: int32 }
+    YearId:
+      name: yearId
+      in: query
+      required: true
+      schema: { type: integer, format: int32 }
+    SemesterId:
+      name: semesterId
+      in: query
+      required: true
+      schema: { type: integer, format: int32 }
+    VoteType:
+      name: voteType
+      in: query
+      required: true
+      schema: { $ref: "#/components/schemas/VoteType" }
+    Pageable:
+      name: pageable
+      in: query
+      required: false
+      description: |
+        Standard Spring Data pagination. Supply as separate query parameters:
+        `page` (0-based), `size` (max 100), and `sort` as `property,asc|desc` (repeatable).
+      style: form
+      explode: true
+      schema:
+        type: object
+        properties:
+          page: { type: integer, minimum: 0, default: 0 }
+          size: { type: integer, minimum: 1, maximum: 100, default: 20 }
+          sort:
+            type: array
+            items: { type: string }
+
+  responses:
+    User:
+      description: OK
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/UserResponse" }
+    UserPage:
+      description: OK
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: "#/components/schemas/PageResponse" }
+              - type: object
+                properties:
+                  content:
+                    type: array
+                    items: { $ref: "#/components/schemas/UserResponse" }
+    Post:
+      description: OK
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/PostResponse" }
+    PostPage:
+      description: OK
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: "#/components/schemas/PageResponse" }
+              - type: object
+                properties:
+                  content:
+                    type: array
+                    items: { $ref: "#/components/schemas/PostResponse" }
+    Comment:
+      description: OK
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/CommentResponse" }
+    CommentPage:
+      description: OK
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: "#/components/schemas/PageResponse" }
+              - type: object
+                properties:
+                  content:
+                    type: array
+                    items: { $ref: "#/components/schemas/CommentResponse" }
+    Subject:
+      description: OK
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/SubjectResponse" }
+    SubjectPage:
+      description: OK
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: "#/components/schemas/PageResponse" }
+              - type: object
+                properties:
+                  content:
+                    type: array
+                    items: { $ref: "#/components/schemas/SubjectResponse" }
+    File:
+      description: OK
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/FileResponse" }
+    FilePage:
+      description: OK
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: "#/components/schemas/PageResponse" }
+              - type: object
+                properties:
+                  content:
+                    type: array
+                    items: { $ref: "#/components/schemas/FileResponse" }
+    Role:
+      description: OK
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/RoleResponse" }
+    SearchUnavailable:
+      description: Meilisearch could not be reached
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/ProblemDetail" }
+    NotFound:
+      description: The addressed resource does not exist
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/ProblemDetail" }
+    Conflict:
+      description: Uniqueness, referential or optimistic-locking conflict
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/ProblemDetail" }
+    ValidationFailed:
+      description: One or more fields failed validation
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/ValidationProblemDetail" }
+    StorageFailure:
+      description: The object store rejected or failed the operation
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/ProblemDetail" }
+
+  schemas:
+    VoteType:
+      type: string
+      enum: [UPVOTE, DOWNVOTE]
+
+    PageResponse:
+      type: object
+      required: [content, page, size, totalElements, totalPages, first, last]
+      properties:
+        content: { type: array, items: {} }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer, format: int64 }
+        totalPages: { type: integer }
+        first: { type: boolean }
+        last: { type: boolean }
+
+    CreateUserRequest:
+      type: object
+      required: [username, password, firstName, lastName, email, departmentId, yearId, semesterId]
+      properties:
+        username: { type: string, maxLength: 40 }
+        password: { type: string, minLength: 8, maxLength: 200 }
+        firstName: { type: string, maxLength: 60 }
+        lastName: { type: string, maxLength: 60 }
+        email: { type: string, format: email, maxLength: 180 }
+        departmentId: { type: integer, format: int32 }
+        yearId: { type: integer, format: int32 }
+        semesterId: { type: integer, format: int32 }
+        acceptedTermsOfService: { type: boolean, default: false }
+
+    UpdateUserRequest:
+      type: object
+      required: [username, firstName, lastName, email, departmentId, yearId, semesterId]
+      properties:
+        username: { type: string, maxLength: 40 }
+        password:
+          type: [string, "null"]
+          minLength: 8
+          maxLength: 200
+          description: Omit or send null to leave the stored password unchanged.
+        firstName: { type: string, maxLength: 60 }
+        lastName: { type: string, maxLength: 60 }
+        email: { type: string, format: email, maxLength: 180 }
+        departmentId: { type: integer, format: int32 }
+        yearId: { type: integer, format: int32 }
+        semesterId: { type: integer, format: int32 }
+        acceptedTermsOfService: { type: [boolean, "null"] }
+        canPost: { type: [boolean, "null"] }
+        canComment: { type: [boolean, "null"] }
+
+    CreatePostRequest:
+      type: object
+      required: [title, description, content]
+      properties:
+        title: { type: string, maxLength: 150 }
+        description: { type: string, maxLength: 400 }
+        content: { type: string }
+
+    CommentBody:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string, maxLength: 5000 }
+
+    SubjectBody:
+      type: object
+      required: [name, code, departmentId, yearId, semesterId]
+      properties:
+        name: { type: string, maxLength: 150 }
+        code: { type: string, maxLength: 20 }
+        lab: { type: boolean, default: false }
+        theory: { type: boolean, default: false }
+        departmentId: { type: integer, format: int32 }
+        yearId: { type: integer, format: int32 }
+        semesterId: { type: integer, format: int32 }
+
+    DepartmentResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int32 }
+        name: { type: string }
+
+    YearResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int32 }
+        value: { type: string }
+
+    SemesterResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int32 }
+        name: { type: string }
+
+    RoleResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int32 }
+        name: { type: string }
+
+    UserResponse:
+      type: object
+      description: The password is never included in a response.
+      properties:
+        id: { type: integer, format: int32 }
+        username: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+        email: { type: string, format: email }
+        acceptedTermsOfService: { type: boolean }
+        verified: { type: boolean }
+        canPost: { type: boolean }
+        canComment: { type: boolean }
+        role: { $ref: "#/components/schemas/RoleResponse" }
+        department: { $ref: "#/components/schemas/DepartmentResponse" }
+        year: { $ref: "#/components/schemas/YearResponse" }
+        semester: { $ref: "#/components/schemas/SemesterResponse" }
+        dateCreated: { type: string, format: date-time }
+        dateLastInteracted: { type: string, format: date-time }
+
+    PostResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int32 }
+        title: { type: string }
+        description: { type: string }
+        content: { type: string }
+        upvoteCount: { type: integer, format: int64 }
+        downvoteCount: { type: integer, format: int64 }
+        favouriteCount: { type: integer, format: int64 }
+        authorId: { type: integer, format: int32 }
+        authorUsername: { type: string }
+        dateCreated: { type: string, format: date-time }
+        dateModified: { type: string, format: date-time }
+
+    CommentResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int32 }
+        content: { type: string }
+        upvoteCount: { type: integer, format: int64 }
+        downvoteCount: { type: integer, format: int64 }
+        postId: { type: integer, format: int32 }
+        authorId: { type: integer, format: int32 }
+        authorUsername: { type: string }
+        dateCreated: { type: string, format: date-time }
+        dateModified: { type: string, format: date-time }
+
+    SubjectResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int32 }
+        name: { type: string }
+        code: { type: string }
+        lab: { type: boolean }
+        theory: { type: boolean }
+        department: { $ref: "#/components/schemas/DepartmentResponse" }
+        year: { $ref: "#/components/schemas/YearResponse" }
+        semester: { $ref: "#/components/schemas/SemesterResponse" }
+
+    FileResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int32 }
+        name: { type: string, description: Original client-supplied filename. }
+        objectName: { type: string, description: Generated object key in the bucket. }
+        objectURL: { type: string, format: uri }
+        size: { type: integer, format: int64 }
+        favouriteCount: { type: integer, format: int64 }
+        subjectId: { type: integer, format: int32 }
+        dateCreated: { type: string, format: date-time }
+        dateModified: { type: string, format: date-time }
+
+    SearchResponse:
+      type: object
+      description: |
+        `estimatedTotalHits` is Meilisearch's own wording: the engine trades an exact count for
+        speed, so it must not be treated as authoritative for pagination.
+      properties:
+        hits: { type: array, items: {} }
+        query: { type: string }
+        page: { type: integer }
+        size: { type: integer }
+        estimatedTotalHits: { type: integer, format: int64 }
+        processingTimeMs: { type: integer, format: int64 }
+
+    FileDocument:
+      type: object
+      description: Timestamps are epoch seconds so ranges and sorting work numerically.
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        extension: { type: string }
+        objectName: { type: string }
+        objectUrl: { type: string }
+        size: { type: integer, format: int64 }
+        favouriteCount: { type: integer, format: int64 }
+        subjectId: { type: integer }
+        subjectName: { type: string }
+        subjectCode: { type: string }
+        lab: { type: boolean }
+        theory: { type: boolean }
+        departmentId: { type: integer }
+        departmentName: { type: string }
+        yearId: { type: integer }
+        yearValue: { type: string }
+        semesterId: { type: integer }
+        semesterName: { type: string }
+        dateCreated: { type: integer, format: int64 }
+
+    SubjectDocument:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        code: { type: string }
+        lab: { type: boolean }
+        theory: { type: boolean }
+        departmentId: { type: integer }
+        departmentName: { type: string }
+        yearId: { type: integer }
+        yearValue: { type: string }
+        semesterId: { type: integer }
+        semesterName: { type: string }
+
+    PostDocument:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        content: { type: string, description: Truncated; the full body comes from the post endpoint. }
+        authorId: { type: integer }
+        authorUsername: { type: string }
+        upvoteCount: { type: integer, format: int64 }
+        downvoteCount: { type: integer, format: int64 }
+        favouriteCount: { type: integer, format: int64 }
+        netScore: { type: integer, format: int64 }
+        dateCreated: { type: integer, format: int64 }
+        dateModified: { type: integer, format: int64 }
+
+    CommentDocument:
+      type: object
+      properties:
+        id: { type: integer }
+        content: { type: string }
+        postId: { type: integer }
+        authorId: { type: integer }
+        authorUsername: { type: string }
+        upvoteCount: { type: integer, format: int64 }
+        downvoteCount: { type: integer, format: int64 }
+        dateCreated: { type: integer, format: int64 }
+
+    ProblemDetail:
+      type: object
+      description: RFC 9457 problem detail.
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string, format: uri }
+        timestamp: { type: string, format: date-time }
+
+    ValidationProblemDetail:
+      allOf:
+        - { $ref: "#/components/schemas/ProblemDetail" }
+        - type: object
+          properties:
+            errors:
+              type: object
+              description: Field name to failure message.
+              additionalProperties: { type: string }

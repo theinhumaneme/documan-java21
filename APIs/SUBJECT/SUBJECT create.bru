@@ -5,15 +5,9 @@ meta {
 }
 
 post {
-  url: {{host}}/api/v1/subject?yearId=3&departmentId=3&semesterId=2
+  url: {{host}}/api/v1/subject
   body: json
   auth: none
-}
-
-params:query {
-  yearId: 3
-  departmentId: 3
-  semesterId: 2
 }
 
 body:json {
@@ -21,6 +15,9 @@ body:json {
     "name": "Circuit Theory",
     "code": "CT",
     "lab": false,
-    "theory": true
+    "theory": true,
+    "departmentId": 3,
+    "yearId": 3,
+    "semesterId": 2
   }
 }

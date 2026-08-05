@@ -7,6 +7,33 @@
 package com.documan.dao;
 
 import com.documan.entity.File;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
-public interface FileDao extends JpaRepository<File, Integer> {}
+public interface FileDao extends JpaRepository<File, Integer> {
+
+  Page<File> findBySubjectId(Integer subjectId, Pageable pageable);
+
+  Optional<File> findByObjectName(String objectName);
+
+  @Modifying(flushAutomatically = true, clearAutomatically = true)
+  @Query("update File f set f.favouriteCount = f.favouriteCount + :delta where f.id = :fileId")
+  void applyFavouriteDelta(@Param("fileId") Integer fileId, @Param("delta") long delta);
+
+  /**
+   * Batch load for indexing. The subject's department, year and semester are all denormalised into
+   * the file document, and they are EAGER associations, so without this graph a batch of N files
+   * costs 1 + 3N selects.
+   */
+  @EntityGraph(
+      attributePaths = {"subject", "subject.department", "subject.year", "subject.semester"})
+  List<File> findForIndexingByIdIn(Collection<Integer> ids);
+}

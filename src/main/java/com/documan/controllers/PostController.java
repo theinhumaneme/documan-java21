@@ -6,20 +6,25 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.controllers;
 
-import com.documan.entity.Post;
+import com.documan.dto.request.CreatePostRequest;
+import com.documan.dto.request.UpdatePostRequest;
+import com.documan.dto.response.PageResponse;
+import com.documan.dto.response.PostResponse;
+import com.documan.entity.VoteType;
 import com.documan.service.FavouriteService;
 import com.documan.service.PostService;
 import com.documan.service.VoteService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/post")
 public class PostController {
-  private static final Logger log = LoggerFactory.getLogger(PostController.class);
+
   private final PostService postService;
   private final VoteService voteService;
   private final FavouriteService favouriteService;
@@ -32,152 +37,69 @@ public class PostController {
   }
 
   @GetMapping
-  public ResponseEntity<?> getPost(@RequestParam("postId") Integer postId) {
-    try {
-      return postService
-          .findById(postId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  public PostResponse getPost(@RequestParam("postId") Integer postId) {
+    return postService.findById(postId);
   }
 
   @GetMapping("/all")
-  public ResponseEntity<?> getAllPosts() {
-    try {
-      return postService
-          .getAllPosts()
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  public PageResponse<PostResponse> getAllPosts(
+      @PageableDefault(size = 20, sort = "dateCreated", direction = Sort.Direction.DESC)
+          Pageable pageable) {
+    return postService.findAll(pageable);
   }
 
   @GetMapping("/user")
-  public ResponseEntity<?> getPostsByUser(@RequestParam("userId") Integer userId) {
-    try {
-      return postService
-          .getPostsByUser(userId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  public PageResponse<PostResponse> getPostsByUser(
+      @RequestParam("userId") Integer userId,
+      @PageableDefault(size = 20, sort = "dateCreated", direction = Sort.Direction.DESC)
+          Pageable pageable) {
+    return postService.findByUser(userId, pageable);
   }
 
   @PostMapping
-  public ResponseEntity<?> createPost(
-      @RequestBody Post post, @RequestParam("userId") Integer userId) {
-    try {
-      return postService
-          .createPost(post, userId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing the post.");
-    }
+  @ResponseStatus(HttpStatus.CREATED)
+  public PostResponse createPost(
+      @Valid @RequestBody CreatePostRequest request, @RequestParam("userId") Integer userId) {
+    return postService.create(request, userId);
   }
 
   @PutMapping
-  public ResponseEntity<?> updatePost(
-      @RequestBody Post post, @RequestParam("postId") Integer postId) {
-    try {
-      return postService
-          .updatePost(post, postId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing the post.");
-    }
+  public PostResponse updatePost(
+      @Valid @RequestBody UpdatePostRequest request, @RequestParam("postId") Integer postId) {
+    return postService.update(postId, request);
   }
 
   @PostMapping("/vote")
-  public ResponseEntity<?> votePost(
-      @RequestParam("voteType") String voteType,
+  public PostResponse votePost(
+      @RequestParam("voteType") VoteType voteType,
       @RequestParam("postId") Integer postId,
       @RequestParam("userId") Integer userId) {
-    try {
-      return voteService
-          .votePost(userId, postId, voteType)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while applying the vote");
-    }
+    return voteService.votePost(postId, userId, voteType);
   }
 
   @PostMapping("/vote/remove")
-  public ResponseEntity<?> removeVotePost(
-      @RequestParam("voteType") String voteType,
+  public PostResponse removeVotePost(
+      @RequestParam("voteType") VoteType voteType,
       @RequestParam("postId") Integer postId,
       @RequestParam("userId") Integer userId) {
-    try {
-      return voteService
-          .removeVotePost(userId, postId, voteType)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while applying the vote");
-    }
+    return voteService.removeVotePost(postId, userId, voteType);
   }
 
   @PostMapping("/favourite")
-  public ResponseEntity<?> favouritePost(
+  public PostResponse favouritePost(
       @RequestParam("postId") Integer postId, @RequestParam("userId") Integer userId) {
-    try {
-      return favouriteService
-          .favouritePost(postId, userId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while applying the vote");
-    }
+    return favouriteService.favouritePost(postId, userId);
   }
 
   @PostMapping("/favourite/remove")
-  public ResponseEntity<?> removeFavouritePost(
+  public PostResponse removeFavouritePost(
       @RequestParam("postId") Integer postId, @RequestParam("userId") Integer userId) {
-    try {
-      return favouriteService
-          .removeFavouritePost(postId, userId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while applying the vote");
-    }
+    return favouriteService.removeFavouritePost(postId, userId);
   }
 
-  @DeleteMapping()
-  public ResponseEntity<?> deleteComment(@RequestParam(value = "postId") Integer postId) {
-    try {
-      return postService
-          .deletePost(postId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  @DeleteMapping
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void deletePost(@RequestParam("postId") Integer postId) {
+    postService.delete(postId);
   }
 }

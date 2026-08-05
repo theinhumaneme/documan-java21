@@ -6,11 +6,8 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -30,14 +27,4 @@ public class Year {
   @NotNull
   @Column(name = "year", nullable = false, unique = true)
   private String value;
-
-  @JsonIgnore
-  @OneToMany(mappedBy = "year", fetch = FetchType.LAZY)
-  @JsonManagedReference(value = "year-subjects")
-  private List<Subject> subjects;
-
-  @JsonIgnore
-  @OneToMany(mappedBy = "year", fetch = FetchType.LAZY)
-  @JsonManagedReference(value = "users-year")
-  private List<User> users;
 }

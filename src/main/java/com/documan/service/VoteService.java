@@ -6,186 +6,181 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.service;
 
+import com.documan.config.CacheConfig;
 import com.documan.dao.CommentDao;
+import com.documan.dao.CommentVoteDao;
 import com.documan.dao.PostDao;
+import com.documan.dao.PostVoteDao;
 import com.documan.dao.UserDao;
+import com.documan.dto.response.CommentResponse;
+import com.documan.dto.response.PostResponse;
 import com.documan.entity.Comment;
+import com.documan.entity.CommentVote;
 import com.documan.entity.Post;
+import com.documan.entity.PostVote;
 import com.documan.entity.User;
-import java.util.List;
+import com.documan.entity.Votable;
+import com.documan.entity.VoteType;
+import com.documan.exception.ResourceNotFoundException;
+import com.documan.mapper.CommentMapper;
+import com.documan.mapper.PostMapper;
+import com.documan.search.AggregateType;
+import com.documan.search.outbox.SearchDirtyBuffer;
 import java.util.Optional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Voting is the hottest write path in the service, and it was previously the most expensive: each
+ * vote loaded {@code post.upvotedUsers} and {@code post.downvotedUsers} in full — every user who
+ * had ever voted on that post — mutated the in-memory collections, and let Hibernate diff them.
+ *
+ * <p>Now a vote touches exactly two rows: an upsert into the join table and one atomic counter
+ * update, neither of which scales with the number of existing voters.
+ */
 @Service
 public class VoteService {
-  private static final Logger log = LoggerFactory.getLogger(VoteService.class);
+
   private final PostDao postDao;
   private final CommentDao commentDao;
   private final UserDao userDao;
+  private final PostVoteDao postVoteDao;
+  private final CommentVoteDao commentVoteDao;
+  private final PostMapper postMapper;
+  private final CommentMapper commentMapper;
+  private final SearchDirtyBuffer dirtyBuffer;
 
-  @Autowired
-  public VoteService(PostDao postdao, CommentDao commentdao, UserDao userdao) {
-    this.postDao = postdao;
-    this.commentDao = commentdao;
-    this.userDao = userdao;
+  public VoteService(
+      PostDao postDao,
+      CommentDao commentDao,
+      UserDao userDao,
+      PostVoteDao postVoteDao,
+      CommentVoteDao commentVoteDao,
+      PostMapper postMapper,
+      CommentMapper commentMapper,
+      SearchDirtyBuffer dirtyBuffer) {
+    this.postDao = postDao;
+    this.commentDao = commentDao;
+    this.userDao = userDao;
+    this.postVoteDao = postVoteDao;
+    this.commentVoteDao = commentVoteDao;
+    this.postMapper = postMapper;
+    this.commentMapper = commentMapper;
+    this.dirtyBuffer = dirtyBuffer;
   }
 
-  public Optional<Comment> voteCommment(Integer userId, Integer commentId, String voteType) {
-    Optional<User> user = userDao.findById(userId);
-    Optional<Comment> comment = commentDao.findById(commentId);
-    if (user.isPresent() && comment.isPresent()) {
-      Comment voteComment = comment.get();
-      return switch (voteType) {
-        case "upvote" -> applyVote(voteComment, user.get(), true);
-        case "downvote" -> applyVote(voteComment, user.get(), false);
-        default -> Optional.empty();
-      };
-    } else {
-      return Optional.empty();
-    }
-  }
+  /** Casting the same vote twice is a no-op rather than an error. */
+  @Transactional
+  @CacheEvict(cacheNames = CacheConfig.POSTS, key = "#postId")
+  public PostResponse votePost(Integer postId, Integer userId, VoteType voteType) {
+    Post post = requirePostWithAuthor(postId);
+    User user = requireUser(userId);
 
-  public Optional<Post> votePost(Integer userId, Integer postId, String voteType) {
-    Optional<User> user = userDao.findById(userId);
-    Optional<Post> post = postDao.findById(postId);
-    if (user.isPresent() && post.isPresent()) {
-      Post votePost = post.get();
-      return switch (voteType) {
-        case "upvote" -> applyVote(votePost, user.get(), true);
-        case "downvote" -> applyVote(votePost, user.get(), false);
-        default -> Optional.empty();
-      };
-    } else {
-      return Optional.empty();
-    }
-  }
-
-  public Optional<Comment> removeVoteCommment(Integer userId, Integer commentId, String voteType) {
-    Optional<User> user = userDao.findById(userId);
-    Optional<Comment> comment = commentDao.findById(commentId);
-    if (user.isPresent() && comment.isPresent()) {
-      Comment voteComment = comment.get();
-      return switch (voteType) {
-        case "upvote" -> removeVote(voteComment, user.get(), true);
-        case "downvote" -> removeVote(voteComment, user.get(), false);
-        default -> Optional.empty();
-      };
-    } else {
-      return Optional.empty();
-    }
-  }
-
-  public Optional<Post> removeVotePost(Integer userId, Integer postId, String voteType) {
-    Optional<User> user = userDao.findById(userId);
-    Optional<Post> post = postDao.findById(postId);
-    if (user.isPresent() && post.isPresent()) {
-      Post votePost = post.get();
-      return switch (voteType) {
-        case "upvote" -> removeVote(votePost, user.get(), true);
-        case "downvote" -> removeVote(votePost, user.get(), false);
-        default -> Optional.empty();
-      };
-    } else {
-      return Optional.empty();
-    }
-  }
-
-  private <T> Optional<T> applyVote(T votable, User user, boolean isUpvote) {
-    try {
-      // Check if the votable is a Post
-      if (votable instanceof Comment comment) {
-        List<User> upvotedUsers = comment.getUpvotedUsers();
-        List<User> downvotedUsers = comment.getDownvotedUsers();
-
-        if (isUpvote) {
-          downvotedUsers.remove(user);
-          if (!upvotedUsers.contains(user)) {
-            upvotedUsers.add(user);
-          }
-        } else {
-          upvotedUsers.remove(user);
-          if (!downvotedUsers.contains(user)) {
-            downvotedUsers.add(user);
-          }
-        }
-        comment.setUpvotedUsers(upvotedUsers);
-        comment.setDownvotedUsers(downvotedUsers);
-        return Optional.of((T) commentDao.save(comment));
+    Optional<PostVote> existing = postVoteDao.findByPostIdAndUserId(postId, userId);
+    VoteDelta delta;
+    if (existing.isPresent()) {
+      PostVote vote = existing.get();
+      if (vote.getVoteType() == voteType) {
+        return postMapper.toResponse(post);
       }
-
-      // Check if the votable is a Post
-      if (votable instanceof Post post) {
-        List<User> upvotedUsers = post.getUpvotedUsers();
-        List<User> downvotedUsers = post.getDownvotedUsers();
-
-        if (isUpvote) {
-          downvotedUsers.remove(user);
-          if (!upvotedUsers.contains(user)) {
-            upvotedUsers.add(user);
-          }
-        } else {
-          upvotedUsers.remove(user);
-          if (!downvotedUsers.contains(user)) {
-            downvotedUsers.add(user);
-          }
-        }
-        post.setUpvotedUsers(upvotedUsers);
-        post.setDownvotedUsers(downvotedUsers);
-        return Optional.of((T) postDao.save(post));
-      }
-    } catch (Exception e) {
-      log.error(e.toString());
-    }
-    return Optional.empty();
-  }
-
-  private <T> Optional<T> removeVote(T votable, User user, boolean isUpvote) {
-    try {
-      if (votable instanceof Comment comment) {
-        if (isUpvote) {
-          List<User> upVotedUsers = comment.getUpvotedUsers();
-          upVotedUsers.remove(user);
-          comment.setUpvotedUsers(upVotedUsers);
-        } else {
-          List<User> downVotedUsers = comment.getDownvotedUsers();
-          downVotedUsers.remove(user);
-          comment.setDownvotedUsers(downVotedUsers);
-        }
-        return Optional.of((T) commentDao.save(comment));
-      } else if (votable instanceof Post post) {
-        if (isUpvote) {
-          List<User> upVotedUsers = post.getUpvotedUsers();
-          upVotedUsers.remove(user);
-          post.setUpvotedUsers(upVotedUsers);
-        } else {
-          List<User> downVotedUsers = post.getDownvotedUsers();
-          downVotedUsers.remove(user);
-          post.setDownvotedUsers(downVotedUsers);
-        }
-        return Optional.of((T) postDao.save(post));
-      }
-    } catch (Exception e) {
-      log.error(e.toString());
-    }
-    return Optional.empty();
-  }
-
-  public Optional<Comment> downvoteComment(Integer userId, Integer commentId) {
-    Optional<User> user = userDao.findById(userId);
-    Optional<Comment> comment = commentDao.findById(commentId);
-    if (user.isPresent() && comment.isPresent()) {
-      Comment upvoteComment = comment.get();
-      List<User> upVotedUsers = upvoteComment.getDownvotedUsers();
-      if (upVotedUsers.stream().noneMatch(c -> c.getId().equals(userId))) {
-        upVotedUsers.add(user.get());
-        upvoteComment.setDownvotedUsers(upVotedUsers);
-      }
-      return Optional.of(upvoteComment);
+      vote.setVoteType(voteType);
+      postVoteDao.save(vote);
+      delta = VoteDelta.switchedTo(voteType);
     } else {
-      return Optional.empty();
+      postVoteDao.save(new PostVote(post, user, voteType));
+      delta = VoteDelta.added(voteType);
     }
+
+    postDao.applyVoteDelta(postId, delta.up(), delta.down());
+    dirtyBuffer.markCounterDirty(AggregateType.POST, postId);
+    return postMapper.toResponse(requirePostWithAuthor(postId));
+  }
+
+  /** Removing a vote that was never cast, or that pointed the other way, is a no-op. */
+  @Transactional
+  @CacheEvict(cacheNames = CacheConfig.POSTS, key = "#postId")
+  public PostResponse removeVotePost(Integer postId, Integer userId, VoteType voteType) {
+    Optional<PostVote> existing = postVoteDao.findByPostIdAndUserId(postId, userId);
+    if (existing.isEmpty() || existing.get().getVoteType() != voteType) {
+      return postMapper.toResponse(requirePostWithAuthor(postId));
+    }
+
+    postVoteDao.delete(existing.get());
+    VoteDelta delta = VoteDelta.removed(voteType);
+    postDao.applyVoteDelta(postId, delta.up(), delta.down());
+    dirtyBuffer.markCounterDirty(AggregateType.POST, postId);
+    return postMapper.toResponse(requirePostWithAuthor(postId));
+  }
+
+  @Transactional
+  @CacheEvict(cacheNames = CacheConfig.COMMENTS, key = "#commentId")
+  public CommentResponse voteComment(Integer commentId, Integer userId, VoteType voteType) {
+    Comment comment = requireCommentWithAuthor(commentId);
+    User user = requireUser(userId);
+
+    Optional<CommentVote> existing = commentVoteDao.findByCommentIdAndUserId(commentId, userId);
+    VoteDelta delta;
+    if (existing.isPresent()) {
+      CommentVote vote = existing.get();
+      if (vote.getVoteType() == voteType) {
+        return commentMapper.toResponse(comment);
+      }
+      vote.setVoteType(voteType);
+      commentVoteDao.save(vote);
+      delta = VoteDelta.switchedTo(voteType);
+    } else {
+      commentVoteDao.save(new CommentVote(comment, user, voteType));
+      delta = VoteDelta.added(voteType);
+    }
+
+    commentDao.applyVoteDelta(commentId, delta.up(), delta.down());
+    dirtyBuffer.markCounterDirty(AggregateType.COMMENT, commentId);
+    return commentMapper.toResponse(requireCommentWithAuthor(commentId));
+  }
+
+  @Transactional
+  @CacheEvict(cacheNames = CacheConfig.COMMENTS, key = "#commentId")
+  public CommentResponse removeVoteComment(Integer commentId, Integer userId, VoteType voteType) {
+    Optional<CommentVote> existing = commentVoteDao.findByCommentIdAndUserId(commentId, userId);
+    if (existing.isEmpty() || existing.get().getVoteType() != voteType) {
+      return commentMapper.toResponse(requireCommentWithAuthor(commentId));
+    }
+
+    commentVoteDao.delete(existing.get());
+    VoteDelta delta = VoteDelta.removed(voteType);
+    commentDao.applyVoteDelta(commentId, delta.up(), delta.down());
+    dirtyBuffer.markCounterDirty(AggregateType.COMMENT, commentId);
+    return commentMapper.toResponse(requireCommentWithAuthor(commentId));
+  }
+
+  /**
+   * Reads the tallies off anything votable. The sealed hierarchy makes this switch exhaustive
+   * without a default branch, replacing the unchecked {@code (T)} casts the previous generic
+   * implementation needed.
+   */
+  public static long netScore(Votable votable) {
+    return switch (votable) {
+      case Post post -> post.getUpvoteCount() - post.getDownvoteCount();
+      case Comment comment -> comment.getUpvoteCount() - comment.getDownvoteCount();
+    };
+  }
+
+  private Post requirePostWithAuthor(Integer postId) {
+    return postDao
+        .findWithUserById(postId)
+        .orElseThrow(() -> new ResourceNotFoundException("Post", postId));
+  }
+
+  private Comment requireCommentWithAuthor(Integer commentId) {
+    return commentDao
+        .findWithUserById(commentId)
+        .orElseThrow(() -> new ResourceNotFoundException("Comment", commentId));
+  }
+
+  private User requireUser(Integer userId) {
+    return userDao
+        .findById(userId)
+        .orElseThrow(() -> new ResourceNotFoundException("User", userId));
   }
 }

@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: {{host}}/api/v1/comment/vote?userId=1&commentId=1&voteType=downvote
+  url: {{host}}/api/v1/comment/vote?userId=1&commentId=1&voteType=DOWNVOTE
   body: json
   auth: none
 }
@@ -13,7 +13,7 @@ post {
 params:query {
   userId: 1
   commentId: 1
-  voteType: downvote
+  voteType: DOWNVOTE
 }
 
 body:json {
