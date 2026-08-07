@@ -17,6 +17,8 @@ public record PostResponse(
     long upvoteCount,
     long downvoteCount,
     long favouriteCount,
+    boolean commentsClosed,
+    boolean announcement,
     Integer authorId,
     String authorUsername,
     OffsetDateTime dateCreated,

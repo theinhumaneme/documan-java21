@@ -73,7 +73,8 @@ class CacheBehaviourTest extends AbstractDataTest {
     postService.findById(post.getId());
 
     postService.update(
-        post.getId(), new com.documan.dto.request.UpdatePostRequest("after", "d", "c"));
+        post.getId(),
+        new com.documan.dto.request.UpdatePostRequest("after", "d", "c", false, false));
 
     assertThat(cached("posts", post.getId(), PostResponse.class).title()).isEqualTo("after");
   }

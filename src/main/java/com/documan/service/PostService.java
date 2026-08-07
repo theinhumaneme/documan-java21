@@ -62,6 +62,7 @@ public class PostService {
     post.setTitle(request.title());
     post.setDescription(request.description());
     post.setContent(request.content());
+    post.setAnnouncement(request.announcement());
     post.setUser(author);
     return postMapper.toResponse(postDao.save(post));
   }
@@ -73,6 +74,8 @@ public class PostService {
     post.setTitle(request.title());
     post.setDescription(request.description());
     post.setContent(request.content());
+    post.setCommentsClosed(request.commentsClosed());
+    post.setAnnouncement(request.announcement());
     return postMapper.toResponse(postDao.save(post));
   }
 
