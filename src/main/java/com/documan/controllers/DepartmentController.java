@@ -21,11 +21,6 @@ public class DepartmentController {
     this.departmentService = departmentService;
   }
 
-  @GetMapping
-  public DepartmentResponse getDepartment(@RequestParam("departmentId") Integer departmentId) {
-    return departmentService.findById(departmentId);
-  }
-
   @GetMapping("/all")
   public List<DepartmentResponse> getAllDepartments() {
     return departmentService.findAll();

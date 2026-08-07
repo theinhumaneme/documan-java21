@@ -9,23 +9,15 @@ package com.documan.search;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.documan.AbstractDataTest;
-import com.documan.dto.request.CreateCommentRequest;
-import com.documan.dto.request.CreatePostRequest;
-import com.documan.dto.request.UpdatePostRequest;
 import com.documan.dto.request.UpdateSubjectRequest;
-import com.documan.dto.request.UpdateUserRequest;
-import com.documan.dto.response.PostResponse;
 import com.documan.entity.*;
-import com.documan.search.document.CommentDocument;
 import com.documan.search.document.FileDocument;
-import com.documan.search.document.PostDocument;
 import com.documan.search.outbox.SearchOutboxDrainer;
 import com.documan.search.outbox.SearchReconcileJob;
 import com.documan.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.CacheManager;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
@@ -42,11 +34,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * gateway waits for each indexing task to reach a terminal state, a document is guaranteed
  * searchable the moment {@code drainOnce()} returns.
  *
- * <p>Caching runs on Redis here so the username fan-out can be checked against both read models at
- * once — the search index and the cached responses that embed the same denormalised field.
+ * <p>Files are the only indexed aggregate, so every case below drives one. The outbox mechanisms
+ * being proved — capture, durability, rollback safety and reconcile — are aggregate-agnostic; they
+ * were previously demonstrated on posts, which are no longer indexed.
  */
 @Testcontainers
-@TestPropertySource(properties = {"documan.search.enabled=true", "spring.cache.type=redis"})
+@TestPropertySource(properties = {"documan.search.enabled=true"})
 class SearchSyncIntegrationTest extends AbstractDataTest {
 
   /** Meilisearch has no Testcontainers module, so it is wired up by hand. */
@@ -66,16 +59,10 @@ class SearchSyncIntegrationTest extends AbstractDataTest {
     registry.add("documan.search.api-key", () -> "test-master-key");
   }
 
-  @Autowired private PostService postService;
-  @Autowired private CommentService commentService;
   @Autowired private SubjectService subjectService;
-  @Autowired private UserService userService;
-  @Autowired private VoteService voteService;
-  @Autowired private FileService fileService;
   @Autowired private SearchService searchService;
   @Autowired private SearchOutboxDrainer drainer;
   @Autowired private IndexBootstrap indexBootstrap;
-  @Autowired private CacheManager cacheManager;
   @Autowired private MeilisearchGateway gateway;
   @Autowired private SearchReconcileJob reconcileJob;
 
@@ -91,61 +78,40 @@ class SearchSyncIntegrationTest extends AbstractDataTest {
   }
 
   @Test
-  void aNewPostBecomesSearchableByTitle() {
-    User author = newUser("author");
-    postService.create(new CreatePostRequest("Fourier Transforms", "lead", "body"), author.getId());
+  void aNewFileBecomesSearchableByName() {
+    Subject subject = newSubject("Signals", "SIG");
+    newFile(subject, "fourier-transforms.pdf");
 
     drainer.drainOnce();
 
-    assertThat(titlesMatching("Fourier")).contains("Fourier Transforms");
+    assertThat(namesMatching("fourier")).contains("fourier-transforms.pdf");
   }
 
   @Test
-  void editingAPostUpdatesItsDocument() {
-    User author = newUser("author");
-    PostResponse created =
-        postService.create(new CreatePostRequest("Original", "lead", "body"), author.getId());
+  void renamingAFileUpdatesItsDocument() {
+    Subject subject = newSubject("Signals", "SIG");
+    File file = newFile(subject, "original.pdf");
     drainer.drainOnce();
 
-    postService.update(created.id(), new UpdatePostRequest("Rewritten", "lead", "body"));
+    file.setName("rewritten.pdf");
+    fileDao.save(file);
     drainer.drainOnce();
 
-    assertThat(titlesMatching("Rewritten")).contains("Rewritten");
-    assertThat(titlesMatching("Original")).doesNotContain("Original");
+    assertThat(namesMatching("rewritten")).contains("rewritten.pdf");
+    assertThat(namesMatching("original")).doesNotContain("original.pdf");
   }
 
   @Test
-  void deletingAPostRemovesItsDocument() {
-    User author = newUser("author");
-    PostResponse created =
-        postService.create(new CreatePostRequest("Ephemeral", "lead", "body"), author.getId());
+  void deletingAFileRemovesItsDocument() {
+    Subject subject = newSubject("Signals", "SIG");
+    File file = newFile(subject, "ephemeral.pdf");
     drainer.drainOnce();
-    assertThat(titlesMatching("Ephemeral")).isNotEmpty();
+    assertThat(namesMatching("ephemeral")).isNotEmpty();
 
-    postService.delete(created.id());
-    drainer.drainOnce();
-
-    assertThat(titlesMatching("Ephemeral")).isEmpty();
-  }
-
-  /**
-   * The comments are removed by a JPA cascade, so {@code CommentService.delete} is never called.
-   * Capturing lifecycle events rather than hand-written service hooks is what makes this work.
-   */
-  @Test
-  void deletingAPostAlsoRemovesItsCommentDocuments() {
-    User author = newUser("author");
-    PostResponse post =
-        postService.create(new CreatePostRequest("Thread", "lead", "body"), author.getId());
-    commentService.create(
-        new CreateCommentRequest("distinctivecommentbody"), author.getId(), post.id());
-    drainer.drainOnce();
-    assertThat(commentsMatching("distinctivecommentbody")).isNotEmpty();
-
-    postService.delete(post.id());
+    fileDao.delete(file);
     drainer.drainOnce();
 
-    assertThat(commentsMatching("distinctivecommentbody")).isEmpty();
+    assertThat(namesMatching("ephemeral")).isEmpty();
   }
 
   /** Every file document copies its subject's name, so a rename has to reach all of them. */
@@ -190,57 +156,6 @@ class SearchSyncIntegrationTest extends AbstractDataTest {
     assertThat(fileKeys).isZero();
   }
 
-  /** Fixes both the index and the pre-existing stale-username cache bug in one path. */
-  @Test
-  void renamingAUserRefreshesTheirPostsInBothTheIndexAndTheCache() {
-    User author = newUser("oldname");
-    PostResponse post =
-        postService.create(new CreatePostRequest("Authored", "lead", "body"), author.getId());
-    drainer.drainOnce();
-
-    // Warm the cache so the stale copy would be observable.
-    postService.findById(post.id());
-    assertThat(cacheManager.getCache("posts").get(post.id(), PostResponse.class).authorUsername())
-        .isEqualTo("oldname");
-
-    userService.update(
-        author.getId(),
-        new UpdateUserRequest(
-            "newname",
-            null,
-            "Test",
-            "User",
-            "oldname@example.test",
-            department.getId(),
-            year.getId(),
-            semester.getId(),
-            null,
-            null,
-            null));
-    drainer.drainOnce();
-
-    assertThat(cacheManager.getCache("posts").get(post.id(), PostResponse.class)).isNull();
-    assertThat(postService.findById(post.id()).authorUsername()).isEqualTo("newname");
-    assertThat(authorsMatching("Authored")).containsExactly("newname");
-  }
-
-  @Test
-  void votingUpdatesTheIndexedTally() {
-    User author = newUser("author");
-    User voter = newUser("voter");
-    PostResponse post =
-        postService.create(new CreatePostRequest("Votable", "lead", "body"), author.getId());
-    drainer.drainOnce();
-
-    voteService.votePost(post.id(), voter.getId(), VoteType.UPVOTE);
-    drainer.drainOnce();
-
-    PostDocument document =
-        searchService.searchPosts("Votable", null, 0, 10, null).hits().getFirst();
-    assertThat(document.upvoteCount()).isEqualTo(1);
-    assertThat(document.netScore()).isEqualTo(1);
-  }
-
   /** An uploaded file must be findable, since that is the original point of the feature. */
   @Test
   void uploadedFilesAreSearchable() {
@@ -274,26 +189,32 @@ class SearchSyncIntegrationTest extends AbstractDataTest {
   /** Nothing that was rolled back may ever reach the index. */
   @Test
   void aRolledBackChangeIsNeverIndexed() {
-    User author = newUser("author");
+    Subject subject = newSubject("Signals", "SIG");
     try {
-      postService.create(new CreatePostRequest("Doomed", "lead", null), author.getId());
+      File doomed = new File();
+      doomed.setName("doomed.pdf");
+      doomed.setObjectName("obj-doomed.pdf");
+      doomed.setObjectURL("http://localhost/obj-doomed.pdf");
+      doomed.setSize(null); // size is NOT NULL, so the transaction fails
+      doomed.setSubject(subject);
+      fileDao.saveAndFlush(doomed);
     } catch (RuntimeException expected) {
-      // content is NOT NULL, so the transaction fails
+      // the insert is rejected and the capture must not survive it
     }
     drainer.drainOnce();
 
-    assertThat(titlesMatching("Doomed")).isEmpty();
+    assertThat(namesMatching("doomed")).isEmpty();
   }
 
   /** The outbox is the durability guarantee: a key survives until it is genuinely indexed. */
   @Test
   void anUndrainedChangeStaysPendingInTheOutbox() {
-    User author = newUser("author");
-    postService.create(new CreatePostRequest("Pending", "lead", "body"), author.getId());
+    Subject subject = newSubject("Signals", "SIG");
+    newFile(subject, "pending.pdf");
 
     Long pending =
         jdbcTemplate.queryForObject(
-            "SELECT count(*) FROM search_outbox WHERE aggregate_type = 'POST'", Long.class);
+            "SELECT count(*) FROM search_outbox WHERE aggregate_type = 'FILE'", Long.class);
     assertThat(pending).isEqualTo(1);
 
     drainer.drainOnce();
@@ -308,61 +229,45 @@ class SearchSyncIntegrationTest extends AbstractDataTest {
    */
   @Test
   void reconcileRebuildsAnIndexThatWasEmptiedOutOfBand() {
-    User author = newUser("author");
-    postService.create(new CreatePostRequest("Recoverable", "lead", "body"), author.getId());
+    Subject subject = newSubject("Signals", "SIG");
+    newFile(subject, "recoverable.pdf");
     drainer.drainOnce();
-    assertThat(titlesMatching("Recoverable")).isNotEmpty();
+    assertThat(namesMatching("recoverable")).isNotEmpty();
 
     // Simulate losing the index without the database ever knowing.
-    gateway.deleteAll(SearchIndex.POSTS);
-    assertThat(titlesMatching("Recoverable")).isEmpty();
+    gateway.deleteAll(SearchIndex.FILES);
+    assertThat(namesMatching("recoverable")).isEmpty();
 
     reconcileJob.reconcile(true);
 
-    assertThat(titlesMatching("Recoverable")).contains("Recoverable");
+    assertThat(namesMatching("recoverable")).contains("recoverable.pdf");
   }
 
-  /** Every indexed aggregate is covered, and the outbox is left clean afterwards. */
+  /** The indexed aggregate is covered, and the outbox is left clean afterwards. */
   @Test
   void reconcileEnqueuesEveryAggregateAndDrainsToCompletion() {
-    User author = newUser("author");
     Subject subject = newSubject("Reconciled Subject", "RS");
     newFile(subject, "reconciled.pdf");
-    PostResponse post =
-        postService.create(new CreatePostRequest("Reconciled", "lead", "body"), author.getId());
-    commentService.create(new CreateCommentRequest("reconciledcomment"), author.getId(), post.id());
     drainer.drainOnce();
 
     var enqueued = reconcileJob.reconcile(true);
 
-    assertThat(enqueued)
-        .containsOnlyKeys(
-            AggregateType.POST, AggregateType.COMMENT, AggregateType.FILE, AggregateType.SUBJECT);
+    assertThat(enqueued).containsOnlyKeys(AggregateType.FILE);
     assertThat(enqueued.values()).allSatisfy(count -> assertThat(count).isEqualTo(1));
 
     Long remaining = jdbcTemplate.queryForObject("SELECT count(*) FROM search_outbox", Long.class);
     assertThat(remaining).isZero();
-    assertThat(titlesMatching("Reconciled")).contains("Reconciled");
-    assertThat(commentsMatching("reconciledcomment")).isNotEmpty();
+    assertThat(namesMatching("reconciled")).contains("reconciled.pdf");
   }
 
   // ------------------------------------------------------------------ helpers
 
-  private java.util.List<String> titlesMatching(String query) {
-    return searchService.searchPosts(query, null, 0, 20, null).hits().stream()
-        .map(PostDocument::title)
-        .toList();
-  }
-
-  private java.util.List<String> authorsMatching(String query) {
-    return searchService.searchPosts(query, null, 0, 20, null).hits().stream()
-        .map(PostDocument::authorUsername)
-        .toList();
-  }
-
-  private java.util.List<String> commentsMatching(String query) {
-    return searchService.searchComments(query, null, null, 0, 20, null).hits().stream()
-        .map(CommentDocument::content)
+  private java.util.List<String> namesMatching(String query) {
+    return searchService
+        .searchFiles(query, null, null, null, null, null, null, null, 0, 20, null)
+        .hits()
+        .stream()
+        .map(FileDocument::name)
         .toList();
   }
 

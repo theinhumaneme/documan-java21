@@ -246,7 +246,7 @@ public class UserService {
               VoteDelta delta = VoteDelta.removed(vote.getVoteType());
               Integer postId = vote.getPost().getId();
               postDao.applyVoteDelta(postId, delta.up(), delta.down());
-              evictAndMarkDirty(CacheConfig.POSTS, AggregateType.POST, postId);
+              evict(CacheConfig.POSTS, postId);
             });
 
     commentVoteDao
@@ -256,7 +256,7 @@ public class UserService {
               VoteDelta delta = VoteDelta.removed(vote.getVoteType());
               Integer commentId = vote.getComment().getId();
               commentDao.applyVoteDelta(commentId, delta.up(), delta.down());
-              evictAndMarkDirty(CacheConfig.COMMENTS, AggregateType.COMMENT, commentId);
+              evict(CacheConfig.COMMENTS, commentId);
             });
 
     postFavouriteDao
@@ -265,7 +265,7 @@ public class UserService {
             favourite -> {
               Integer postId = favourite.getPost().getId();
               postDao.applyFavouriteDelta(postId, -1);
-              evictAndMarkDirty(CacheConfig.POSTS, AggregateType.POST, postId);
+              evict(CacheConfig.POSTS, postId);
             });
 
     fileFavouriteDao
@@ -278,12 +278,11 @@ public class UserService {
             });
   }
 
-  private void evictAndMarkDirty(String cacheName, AggregateType type, Integer id) {
+  private void evict(String cacheName, Integer id) {
     Cache cache = cacheManager.getCache(cacheName);
     if (cache != null) {
       cache.evict(id);
     }
-    dirtyBuffer.markDirty(type, id);
   }
 
   // ---------------------------------------------------------------------

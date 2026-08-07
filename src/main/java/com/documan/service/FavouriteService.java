@@ -79,7 +79,6 @@ public class FavouriteService {
     }
     postFavouriteDao.save(new PostFavourite(post, user));
     postDao.applyFavouriteDelta(postId, 1);
-    dirtyBuffer.markCounterDirty(AggregateType.POST, postId);
     return postMapper.toResponse(requirePost(postId));
   }
 
@@ -92,7 +91,6 @@ public class FavouriteService {
     }
     postFavouriteDao.delete(existing.get());
     postDao.applyFavouriteDelta(postId, -1);
-    dirtyBuffer.markCounterDirty(AggregateType.POST, postId);
     return postMapper.toResponse(requirePost(postId));
   }
 

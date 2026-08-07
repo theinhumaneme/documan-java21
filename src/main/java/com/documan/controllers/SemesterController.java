@@ -21,11 +21,6 @@ public class SemesterController {
     this.semesterService = semesterService;
   }
 
-  @GetMapping
-  public SemesterResponse getSemester(@RequestParam("semesterId") Integer semesterId) {
-    return semesterService.findById(semesterId);
-  }
-
   @GetMapping("/all")
   public List<SemesterResponse> getAllSemesters() {
     return semesterService.findAll();

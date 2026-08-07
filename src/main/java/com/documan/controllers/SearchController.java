@@ -9,10 +9,7 @@ package com.documan.controllers;
 import com.documan.search.ConditionalOnSearchEnabled;
 import com.documan.search.SearchResponse;
 import com.documan.search.SearchService;
-import com.documan.search.document.CommentDocument;
 import com.documan.search.document.FileDocument;
-import com.documan.search.document.PostDocument;
-import com.documan.search.document.SubjectDocument;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -60,41 +57,5 @@ public class SearchController {
         page,
         size,
         sort);
-  }
-
-  @GetMapping("/subjects")
-  public SearchResponse<SubjectDocument> subjects(
-      @RequestParam(value = "q", required = false) String query,
-      @RequestParam(value = "departmentId", required = false) Integer departmentId,
-      @RequestParam(value = "yearId", required = false) Integer yearId,
-      @RequestParam(value = "semesterId", required = false) Integer semesterId,
-      @RequestParam(value = "lab", required = false) Boolean lab,
-      @RequestParam(value = "theory", required = false) Boolean theory,
-      @RequestParam(value = "page", defaultValue = "0") int page,
-      @RequestParam(value = "size", defaultValue = "20") int size,
-      @RequestParam(value = "sort", required = false) String sort) {
-    return searchService.searchSubjects(
-        query, departmentId, yearId, semesterId, lab, theory, page, size, sort);
-  }
-
-  @GetMapping("/posts")
-  public SearchResponse<PostDocument> posts(
-      @RequestParam(value = "q", required = false) String query,
-      @RequestParam(value = "authorId", required = false) Integer authorId,
-      @RequestParam(value = "page", defaultValue = "0") int page,
-      @RequestParam(value = "size", defaultValue = "20") int size,
-      @RequestParam(value = "sort", required = false) String sort) {
-    return searchService.searchPosts(query, authorId, page, size, sort);
-  }
-
-  @GetMapping("/comments")
-  public SearchResponse<CommentDocument> comments(
-      @RequestParam(value = "q", required = false) String query,
-      @RequestParam(value = "postId", required = false) Integer postId,
-      @RequestParam(value = "authorId", required = false) Integer authorId,
-      @RequestParam(value = "page", defaultValue = "0") int page,
-      @RequestParam(value = "size", defaultValue = "20") int size,
-      @RequestParam(value = "sort", required = false) String sort) {
-    return searchService.searchComments(query, postId, authorId, page, size, sort);
   }
 }

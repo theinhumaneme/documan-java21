@@ -16,7 +16,4 @@ import jakarta.validation.constraints.NotNull;
  * which is not a grant anyone means to make.
  */
 public record GrantScopeRequest(
-    @NotNull Integer userId,
-    @NotNull Integer departmentId,
-    Integer yearId,
-    Integer semesterId) {}
+    @NotNull Integer userId, @NotNull Integer departmentId, Integer yearId, Integer semesterId) {}

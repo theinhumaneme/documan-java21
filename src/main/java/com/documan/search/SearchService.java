@@ -6,10 +6,7 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.search;
 
-import com.documan.search.document.CommentDocument;
 import com.documan.search.document.FileDocument;
-import com.documan.search.document.PostDocument;
-import com.documan.search.document.SubjectDocument;
 import com.meilisearch.sdk.SearchRequest;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -54,41 +51,6 @@ public class SearchService {
             .equals("lab", lab)
             .equals("theory", theory);
     return execute(SearchIndex.FILES, query, filter, page, size, sort, FileDocument.class);
-  }
-
-  public SearchResponse<SubjectDocument> searchSubjects(
-      String query,
-      Integer departmentId,
-      Integer yearId,
-      Integer semesterId,
-      Boolean lab,
-      Boolean theory,
-      int page,
-      int size,
-      String sort) {
-    SearchFilter filter =
-        SearchFilter.forIndex(SearchIndex.SUBJECTS)
-            .equals("departmentId", departmentId)
-            .equals("yearId", yearId)
-            .equals("semesterId", semesterId)
-            .equals("lab", lab)
-            .equals("theory", theory);
-    return execute(SearchIndex.SUBJECTS, query, filter, page, size, sort, SubjectDocument.class);
-  }
-
-  public SearchResponse<PostDocument> searchPosts(
-      String query, Integer authorId, int page, int size, String sort) {
-    SearchFilter filter = SearchFilter.forIndex(SearchIndex.POSTS).equals("authorId", authorId);
-    return execute(SearchIndex.POSTS, query, filter, page, size, sort, PostDocument.class);
-  }
-
-  public SearchResponse<CommentDocument> searchComments(
-      String query, Integer postId, Integer authorId, int page, int size, String sort) {
-    SearchFilter filter =
-        SearchFilter.forIndex(SearchIndex.COMMENTS)
-            .equals("postId", postId)
-            .equals("authorId", authorId);
-    return execute(SearchIndex.COMMENTS, query, filter, page, size, sort, CommentDocument.class);
   }
 
   private <T> SearchResponse<T> execute(

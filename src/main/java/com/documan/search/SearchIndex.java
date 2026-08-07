@@ -7,7 +7,7 @@
 package com.documan.search;
 
 /**
- * The four indexed aggregates.
+ * The indexed aggregates.
  *
  * <p>Attribute lists are ordered and fixed. Meilisearch reindexes an entire index whenever settings
  * actually change, so these must serialise identically on every boot — building them from an
@@ -23,25 +23,7 @@ public enum SearchIndex {
       new String[] {
         "extension", "subjectId", "departmentId", "yearId", "semesterId", "lab", "theory"
       },
-      new String[] {"name", "size", "favouriteCount", "dateCreated"}),
-
-  SUBJECTS(
-      "subjects",
-      new String[] {"name", "code"},
-      new String[] {"departmentId", "yearId", "semesterId", "lab", "theory"},
-      new String[] {"name", "code"}),
-
-  POSTS(
-      "posts",
-      new String[] {"title", "description", "content", "authorUsername"},
-      new String[] {"authorId", "authorUsername"},
-      new String[] {"dateCreated", "upvoteCount", "netScore"}),
-
-  COMMENTS(
-      "comments",
-      new String[] {"content", "authorUsername"},
-      new String[] {"postId", "authorId"},
-      new String[] {"dateCreated", "upvoteCount"});
+      new String[] {"name", "size", "favouriteCount", "dateCreated"});
 
   private final String suffix;
   private final String[] searchable;
@@ -74,9 +56,6 @@ public enum SearchIndex {
   public static SearchIndex of(AggregateType type) {
     return switch (type) {
       case FILE -> FILES;
-      case SUBJECT -> SUBJECTS;
-      case POST -> POSTS;
-      case COMMENT -> COMMENTS;
     };
   }
 }

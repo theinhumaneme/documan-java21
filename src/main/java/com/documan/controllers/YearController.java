@@ -21,11 +21,6 @@ public class YearController {
     this.yearService = yearService;
   }
 
-  @GetMapping
-  public YearResponse getYear(@RequestParam("yearId") Integer yearId) {
-    return yearService.findById(yearId);
-  }
-
   @GetMapping("/all")
   public List<YearResponse> getAllYears() {
     return yearService.findAll();

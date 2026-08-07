@@ -24,8 +24,6 @@ import com.documan.entity.VoteType;
 import com.documan.exception.ResourceNotFoundException;
 import com.documan.mapper.CommentMapper;
 import com.documan.mapper.PostMapper;
-import com.documan.search.AggregateType;
-import com.documan.search.outbox.SearchDirtyBuffer;
 import java.util.Optional;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
@@ -49,7 +47,6 @@ public class VoteService {
   private final CommentVoteDao commentVoteDao;
   private final PostMapper postMapper;
   private final CommentMapper commentMapper;
-  private final SearchDirtyBuffer dirtyBuffer;
 
   public VoteService(
       PostDao postDao,
@@ -58,8 +55,7 @@ public class VoteService {
       PostVoteDao postVoteDao,
       CommentVoteDao commentVoteDao,
       PostMapper postMapper,
-      CommentMapper commentMapper,
-      SearchDirtyBuffer dirtyBuffer) {
+      CommentMapper commentMapper) {
     this.postDao = postDao;
     this.commentDao = commentDao;
     this.userDao = userDao;
@@ -67,7 +63,6 @@ public class VoteService {
     this.commentVoteDao = commentVoteDao;
     this.postMapper = postMapper;
     this.commentMapper = commentMapper;
-    this.dirtyBuffer = dirtyBuffer;
   }
 
   /** Casting the same vote twice is a no-op rather than an error. */
@@ -93,7 +88,6 @@ public class VoteService {
     }
 
     postDao.applyVoteDelta(postId, delta.up(), delta.down());
-    dirtyBuffer.markCounterDirty(AggregateType.POST, postId);
     return postMapper.toResponse(requirePostWithAuthor(postId));
   }
 
@@ -109,7 +103,6 @@ public class VoteService {
     postVoteDao.delete(existing.get());
     VoteDelta delta = VoteDelta.removed(voteType);
     postDao.applyVoteDelta(postId, delta.up(), delta.down());
-    dirtyBuffer.markCounterDirty(AggregateType.POST, postId);
     return postMapper.toResponse(requirePostWithAuthor(postId));
   }
 
@@ -135,7 +128,6 @@ public class VoteService {
     }
 
     commentDao.applyVoteDelta(commentId, delta.up(), delta.down());
-    dirtyBuffer.markCounterDirty(AggregateType.COMMENT, commentId);
     return commentMapper.toResponse(requireCommentWithAuthor(commentId));
   }
 
@@ -150,7 +142,6 @@ public class VoteService {
     commentVoteDao.delete(existing.get());
     VoteDelta delta = VoteDelta.removed(voteType);
     commentDao.applyVoteDelta(commentId, delta.up(), delta.down());
-    dirtyBuffer.markCounterDirty(AggregateType.COMMENT, commentId);
     return commentMapper.toResponse(requireCommentWithAuthor(commentId));
   }
 

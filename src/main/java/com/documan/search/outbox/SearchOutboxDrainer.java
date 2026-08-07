@@ -6,10 +6,7 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.search.outbox;
 
-import com.documan.dao.CommentDao;
 import com.documan.dao.FileDao;
-import com.documan.dao.PostDao;
-import com.documan.dao.SubjectDao;
 import com.documan.search.*;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -56,10 +53,7 @@ public class SearchOutboxDrainer {
   private final DocumentFactory documents;
   private final ObjectMapper objectMapper;
   private final SearchProperties properties;
-  private final PostDao postDao;
-  private final CommentDao commentDao;
   private final FileDao fileDao;
-  private final SubjectDao subjectDao;
 
   public SearchOutboxDrainer(
       SearchOutboxStore store,
@@ -67,19 +61,13 @@ public class SearchOutboxDrainer {
       DocumentFactory documents,
       ObjectMapper objectMapper,
       SearchProperties properties,
-      PostDao postDao,
-      CommentDao commentDao,
-      FileDao fileDao,
-      SubjectDao subjectDao) {
+      FileDao fileDao) {
     this.store = store;
     this.gateway = gateway;
     this.documents = documents;
     this.objectMapper = objectMapper;
     this.properties = properties;
-    this.postDao = postDao;
-    this.commentDao = commentDao;
     this.fileDao = fileDao;
-    this.subjectDao = subjectDao;
   }
 
   /**
@@ -159,24 +147,10 @@ public class SearchOutboxDrainer {
     Set<Integer> present = new HashSet<>();
     List<?> upserts =
         switch (type) {
-          case POST ->
-              map(postDao.findWithUserByIdIn(ids), p -> p.getId(), present, documents::toDocument);
-          case COMMENT ->
-              map(
-                  commentDao.findWithUserByIdIn(ids),
-                  c -> c.getId(),
-                  present,
-                  documents::toDocument);
           case FILE ->
               map(
                   fileDao.findForIndexingByIdIn(ids),
                   f -> f.getId(),
-                  present,
-                  documents::toDocument);
-          case SUBJECT ->
-              map(
-                  subjectDao.findForIndexingByIdIn(ids),
-                  s -> s.getId(),
                   present,
                   documents::toDocument);
         };

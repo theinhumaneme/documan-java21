@@ -10,7 +10,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.documan.entity.*;
 import com.documan.search.document.FileDocument;
-import com.documan.search.document.PostDocument;
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.Test;
 
@@ -30,16 +29,6 @@ class DocumentFactoryTest {
     assertThat(DocumentFactory.extensionOf("README")).isEmpty();
     assertThat(DocumentFactory.extensionOf("trailing.")).isEmpty();
     assertThat(DocumentFactory.extensionOf(null)).isEmpty();
-  }
-
-  /** post.content is unbounded TEXT; a whole batch of them could exceed the payload limit. */
-  @Test
-  void oversizedContentIsTruncated() {
-    String huge = "x".repeat(DocumentFactory.MAX_INDEXED_CONTENT + 500);
-
-    assertThat(DocumentFactory.truncate(huge)).hasSize(DocumentFactory.MAX_INDEXED_CONTENT);
-    assertThat(DocumentFactory.truncate("short")).isEqualTo("short");
-    assertThat(DocumentFactory.truncate(null)).isNull();
   }
 
   @Test
@@ -62,18 +51,6 @@ class DocumentFactoryTest {
     assertThat(document.yearValue()).isEqualTo("II");
     assertThat(document.semesterName()).isEqualTo("I");
     assertThat(document.theory()).isTrue();
-  }
-
-  @Test
-  void aPostDocumentCarriesItsAuthorAndAPrecomputedNetScore() {
-    PostDocument document = factory.toDocument(samplePost());
-
-    assertThat(document.authorId()).isEqualTo(3);
-    assertThat(document.authorUsername()).isEqualTo("author");
-    assertThat(document.upvoteCount()).isEqualTo(7);
-    assertThat(document.downvoteCount()).isEqualTo(2);
-    // Precomputed because Meilisearch can only sort on a stored attribute.
-    assertThat(document.netScore()).isEqualTo(5);
   }
 
   private static File sampleFile() {
@@ -105,23 +82,5 @@ class DocumentFactoryTest {
     file.setSubject(subject);
     file.setDateCreated(OffsetDateTime.parse("2024-10-28T00:00:00Z"));
     return file;
-  }
-
-  private static Post samplePost() {
-    User author = new User();
-    author.setId(3);
-    author.setUsername("author");
-
-    Post post = new Post();
-    post.setId(9);
-    post.setTitle("title");
-    post.setDescription("description");
-    post.setContent("content");
-    post.setUser(author);
-    post.setUpvoteCount(7);
-    post.setDownvoteCount(2);
-    post.setDateCreated(OffsetDateTime.parse("2024-10-28T00:00:00Z"));
-    post.setDateModified(OffsetDateTime.parse("2024-10-29T00:00:00Z"));
-    return post;
   }
 }

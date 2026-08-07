@@ -126,8 +126,7 @@ public class MaintainerScopeService {
       scope.setSemester(
           semesterDao
               .findById(request.semesterId())
-              .orElseThrow(
-                  () -> new ResourceNotFoundException("Semester", request.semesterId())));
+              .orElseThrow(() -> new ResourceNotFoundException("Semester", request.semesterId())));
     }
 
     // A grant already covered by a wider one is refused rather than stored. Two rows where one
@@ -137,7 +136,8 @@ public class MaintainerScopeService {
         scopeDao.findByUserId(request.userId()).stream()
             .anyMatch(
                 existing ->
-                    existing.covers(request.departmentId(), request.yearId(), request.semesterId()));
+                    existing.covers(
+                        request.departmentId(), request.yearId(), request.semesterId()));
     if (alreadyCovered) {
       throw new DuplicateResourceException(
           "That maintainer already has access covering this address");

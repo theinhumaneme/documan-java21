@@ -6,10 +6,7 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.search.outbox;
 
-import com.documan.entity.Comment;
 import com.documan.entity.File;
-import com.documan.entity.Post;
-import com.documan.entity.Subject;
 import com.documan.search.AggregateType;
 import jakarta.persistence.PostPersist;
 import jakarta.persistence.PostRemove;
@@ -19,12 +16,10 @@ import org.springframework.stereotype.Component;
 /**
  * Captures entity lifecycle changes into {@link SearchDirtyBuffer}.
  *
- * <p>Using JPA lifecycle callbacks rather than a call in each of the twenty-odd mutating service
- * methods is deliberate. This codebase has already accumulated two bugs from the "remember to also
- * do X here" pattern, and one of them is directly relevant: {@code PostService.delete} removes
- * comments through {@code cascade = REMOVE}, so {@code CommentService.delete} is never invoked.
- * Hibernate issues an individual delete per comment, each firing {@link PostRemove} here, so the
- * cascade needs no special handling.
+ * <p>Using JPA lifecycle callbacks rather than a call in each mutating service method is
+ * deliberate: this codebase has already accumulated two bugs from the "remember to also do X here"
+ * pattern. A file removed by a cascade fires {@link PostRemove} here like any other, so the cascade
+ * needs no special handling.
  *
  * <p>{@link PostPersist} sees a populated identifier because every entity uses {@code IDENTITY}
  * generation, so the insert and the id assignment both happen during {@code persist()}.
@@ -50,13 +45,11 @@ public class SearchEntityListener {
   @PostRemove
   public void onChange(Object entity) {
     switch (entity) {
-      case Post post -> buffer.markDirty(AggregateType.POST, post.getId());
-      case Comment comment -> buffer.markDirty(AggregateType.COMMENT, comment.getId());
       case File file -> buffer.markDirty(AggregateType.FILE, file.getId());
-      case Subject subject -> buffer.markDirty(AggregateType.SUBJECT, subject.getId());
       default -> {
-        // Users and reference tables are not indexed; their effect on documents is handled by
-        // explicit fan-out where a denormalised field actually changed.
+        // Nothing else is indexed. A file document denormalises its subject's name and code, but
+        // that is not repaired from here: SubjectService.update fans out to the subject's files
+        // explicitly, and only when one of the copied fields actually changed.
       }
     }
   }

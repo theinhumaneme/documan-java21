@@ -238,10 +238,7 @@ public class SearchOutboxStore {
     }
 
     Map<AggregateType, Integer> enqueued = new EnumMap<>(AggregateType.class);
-    enqueued.put(AggregateType.POST, reconcileAll("POST", "SELECT p.id FROM post p"));
-    enqueued.put(AggregateType.COMMENT, reconcileAll("COMMENT", "SELECT c.id FROM comment c"));
     enqueued.put(AggregateType.FILE, reconcileAll("FILE", "SELECT f.id FROM file f"));
-    enqueued.put(AggregateType.SUBJECT, reconcileAll("SUBJECT", "SELECT s.id FROM subject s"));
     return enqueued;
   }
 

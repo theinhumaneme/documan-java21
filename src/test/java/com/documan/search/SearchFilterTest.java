@@ -47,9 +47,9 @@ class SearchFilterTest {
 
   @Test
   void numbersAndBooleansAreNotQuoted() {
-    assertThat(SearchFilter.forIndex(SearchIndex.COMMENTS).equals("postId", 7).build())
-        .isEqualTo("postId = 7");
-    assertThat(SearchFilter.forIndex(SearchIndex.SUBJECTS).equals("theory", false).build())
+    assertThat(SearchFilter.forIndex(SearchIndex.FILES).equals("subjectId", 7).build())
+        .isEqualTo("subjectId = 7");
+    assertThat(SearchFilter.forIndex(SearchIndex.FILES).equals("theory", false).build())
         .isEqualTo("theory = false");
   }
 
@@ -84,14 +84,5 @@ class SearchFilterTest {
             () -> SearchFilter.forIndex(SearchIndex.FILES).equals("objectUrl", "anything"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("not filterable");
-  }
-
-  @Test
-  void filterableSetsAreScopedPerIndex() {
-    // postId is filterable on comments...
-    assertThat(SearchFilter.forIndex(SearchIndex.COMMENTS).equals("postId", 1).build()).isNotNull();
-    // ...but meaningless on files.
-    assertThatThrownBy(() -> SearchFilter.forIndex(SearchIndex.FILES).equals("postId", 1))
-        .isInstanceOf(IllegalArgumentException.class);
   }
 }

@@ -76,7 +76,6 @@ cloudflare:
     secret-access-key: ${R2_SECRET_ACCESS_KEY:dev-secret-key}
     files-bucket: ${R2_FILES_BUCKET:documan-files}
     files-bucket-public-access-url: ${R2_FILES_PUBLIC_URL:https://example.com/documan-files}
-    user-bucket: ${R2_USER_BUCKET:documan-users}
     # R2 does not implement S3 ACLs; off locally so an unconfigured bucket does not reject uploads.
     public-read-acl: false
 
