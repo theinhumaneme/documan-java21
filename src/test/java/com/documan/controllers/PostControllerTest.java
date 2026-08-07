@@ -70,7 +70,7 @@ class PostControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                    {"title":"title","description":"description","content":"content"}
+                    {"title":"title","description":"description","content":"content","announcement":false}
                     """))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.id").value(1))
@@ -86,7 +86,7 @@ class PostControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                    {"title":"","description":"d","content":"c"}
+                    {"title":"","description":"d","content":"c","announcement":false}
                     """))
         .andExpect(status().isBadRequest())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
@@ -104,7 +104,7 @@ class PostControllerTest {
                 .param("userId", "7")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                    "{\"title\":\"%s\",\"description\":\"d\",\"content\":\"c\"}"
+                    "{\"title\":\"%s\",\"description\":\"d\",\"content\":\"c\",\"announcement\":false}"
                         .formatted(longTitle)))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.errors.title").exists());

@@ -61,7 +61,6 @@ public non-sealed class Post implements Votable {
   @Column(name = "favourite_count", nullable = false, columnDefinition = "bigint default 0")
   private long favouriteCount;
 
-  @Version
   /** An author or moderator can close a thread without deleting it. */
   @Column(name = "comments_closed", nullable = false, columnDefinition = "boolean default false")
   private boolean commentsClosed;
@@ -70,6 +69,7 @@ public non-sealed class Post implements Votable {
   @Column(name = "announcement", nullable = false, columnDefinition = "boolean default false")
   private boolean announcement;
 
+  @Version
   @Column(name = "version", nullable = false, columnDefinition = "bigint default 0")
   private long version;
 
