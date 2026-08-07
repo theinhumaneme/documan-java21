@@ -49,9 +49,11 @@ spring:
   servlet:
     multipart:
       enabled: true
-      max-file-size: 25MB
+      max-file-size: 150MB
+      # Must stay above max-file-size: the request carries the file plus the form fields and
+      # multipart boundaries, so a limit equal to the file size rejects a file of exactly that size.
       # Previously unset, which left the total request size effectively unbounded.
-      max-request-size: 30MB
+      max-request-size: 160MB
 
   data:
     web:
@@ -82,14 +84,19 @@ server:
 
 documan:
   search:
-    # Meilisearch is optional. With this false the client, drainer and /api/v1/search endpoints are
-    # not created and the capture layer is a no-op, so the service runs exactly as it did before
-    # search existed.
-    enabled: true
-    host: http://localhost:7700
-    api-key: masterKey
-    # Index uids are global to a Meilisearch instance, so environments can share one server.
-    index-prefix: documan_
+    # Which Meilisearch to talk to — enabled, host, api-key, index-prefix — lives in the profile
+    # files, not here. Those four differ per environment: the host and key are per-deployment, the
+    # api-key is a secret that does not belong in a checked-in shared file, and because index uids
+    # are global to a Meilisearch instance the prefix is the only thing keeping two environments
+    # that share one server from overwriting each other's documents.
+    #
+    # Meilisearch is optional, and SearchProperties defaults `enabled` to false. A profile that says
+    # nothing therefore gets no client, no drainer and no /api/v1/search endpoints, and the capture
+    # layer becomes a no-op — the service runs exactly as it did before search existed. Switching it
+    # on is a deliberate, per-environment act.
+    #
+    # What stays below is behaviour that should not drift between environments.
+
     # An unbounded call is how a search outage turns into a thread-pool outage.
     request-timeout: 10s
     reconcile:
@@ -97,7 +104,8 @@ documan:
       # missed. Only enqueues — the drainer does the pushing, so this costs four set-based inserts
       # regardless of table size, and search keeps serving throughout because documents are
       # upserted rather than cleared and rebuilt.
-      enabled: true
+      #
+      # On by default whenever search is on (matchIfMissing); a profile can switch it off.
       cron: "0 0 */6 * * *"
     outbox:
       batch-size: 200

@@ -10,17 +10,18 @@ import java.io.Serializable;
 import java.time.OffsetDateTime;
 
 /**
- * @param folderId the folder this file is filed under; every file has one
+ * @param slug stable, machine-readable, unique within the subject; what a readable URL uses
+ * @param isDefault provisioned from {@code DefaultFolder}; cannot be renamed or deleted
+ * @param fileCount how many files are filed here, so a folder grid does not need a request per
+ *     folder to show it
  */
-public record FileResponse(
+public record FolderResponse(
     Integer id,
     String name,
-    String objectName,
-    String objectURL,
-    Long size,
-    long favouriteCount,
+    String slug,
+    boolean isDefault,
     Integer subjectId,
-    Integer folderId,
+    long fileCount,
     OffsetDateTime dateCreated,
     OffsetDateTime dateModified)
     implements Serializable {}

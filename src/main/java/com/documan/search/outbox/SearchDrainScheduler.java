@@ -6,13 +6,13 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.search.outbox;
 
+import com.documan.search.ConditionalOnSearchEnabled;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -31,7 +31,7 @@ import org.springframework.stereotype.Component;
  * crash or an outage left in the outbox.
  */
 @Component
-@ConditionalOnBean(SearchOutboxDrainer.class)
+@ConditionalOnSearchEnabled
 @ConditionalOnProperty(
     prefix = "documan.search.drainer",
     name = "enabled",

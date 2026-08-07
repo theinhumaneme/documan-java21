@@ -30,7 +30,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 
 /**
@@ -43,7 +42,7 @@ import org.springframework.stereotype.Component;
  * a terminal task status before it is reported as done.
  */
 @Component
-@ConditionalOnBean(Client.class)
+@ConditionalOnSearchEnabled
 public class MeilisearchGateway {
 
   private static final Logger log = LoggerFactory.getLogger(MeilisearchGateway.class);

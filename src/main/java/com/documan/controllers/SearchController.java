@@ -6,13 +6,13 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.controllers;
 
+import com.documan.search.ConditionalOnSearchEnabled;
 import com.documan.search.SearchResponse;
 import com.documan.search.SearchService;
 import com.documan.search.document.CommentDocument;
 import com.documan.search.document.FileDocument;
 import com.documan.search.document.PostDocument;
 import com.documan.search.document.SubjectDocument;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/v1/search")
-@ConditionalOnBean(SearchService.class)
+@ConditionalOnSearchEnabled
 public class SearchController {
 
   private final SearchService searchService;

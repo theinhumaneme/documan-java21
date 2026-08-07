@@ -26,4 +26,14 @@ dev:
 test:
 	@mvn -B verify
 
-.PHONY: format init up down logs reset dev test
+# --- generated artefacts ----------------------------------------------------
+# Both are produced from the code, never edited by hand. Commit the result.
+openapi:
+	@./extract-openapi-json.sh
+schema:
+	@./extract-schema-sql.sh
+# What CI runs: fails if either committed artefact is behind the code.
+verify-generated:
+	@./extract-openapi-json.sh --check
+
+.PHONY: format init up down logs reset dev test openapi schema verify-generated

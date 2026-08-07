@@ -9,12 +9,10 @@ package com.documan.search;
 import com.meilisearch.sdk.Client;
 import com.meilisearch.sdk.Index;
 import com.meilisearch.sdk.exceptions.MeilisearchApiException;
-import com.meilisearch.sdk.model.Settings;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -27,7 +25,7 @@ import org.springframework.stereotype.Component;
  * retried lazily before the next push, so the system heals itself once Meilisearch returns.
  */
 @Component
-@ConditionalOnBean(Client.class)
+@ConditionalOnSearchEnabled
 public class IndexBootstrap {
 
   private static final Logger log = LoggerFactory.getLogger(IndexBootstrap.class);
@@ -62,7 +60,11 @@ public class IndexBootstrap {
       log.info("Meilisearch indexes ready");
       return true;
     } catch (RuntimeException e) {
-      log.warn("Could not prepare Meilisearch indexes, will retry: {}", e.getMessage());
+      // The whole exception, not just its message. These failures are wrapped several layers deep —
+      // a transport problem inside the SDK surfaces here as "Could not update settings for FILES"
+      // and nothing else — so dropping the cause leaves no way to tell a misconfigured host from a
+      // rejected payload from a missing class, all of which land on this line.
+      log.warn("Could not prepare Meilisearch indexes, will retry", e);
       return false;
     }
   }
@@ -82,32 +84,50 @@ public class IndexBootstrap {
   }
 
   /**
-   * Compares before writing. Updating settings makes Meilisearch reindex the whole index, so
-   * pushing them unconditionally on every boot would be a full reindex per deploy the moment the
-   * attribute lists stopped being byte-identical.
+   * Compares before writing, one attribute list at a time.
+   *
+   * <p>Each list goes through its own endpoint rather than as a single {@code Settings} object. The
+   * SDK's {@code Settings} serialises every field it knows about — including {@code
+   * filterableAttributesConfig} — and Meilisearch rejects an entire request when it does not
+   * recognise a field name, so one blob couples the three settings we actually manage to every
+   * field the SDK and the server happen to disagree about. Meilisearch 1.52 rejects that exact
+   * field, which killed the call before it left the client and left three of the four indexes
+   * uncreated. Sending only the fields we manage cannot break that way.
+   *
+   * <p>Only the lists that differ are written. Updating a setting makes Meilisearch reindex, so
+   * writing all three unconditionally would be three reindexes where one is needed, and writing
+   * them on every boot would be a reindex per deploy.
    */
   private void applySettings(SearchIndex index) {
     Index target = gateway.index(index);
-    Settings current;
+    String[] searchable;
+    String[] filterable;
+    String[] sortable;
     try {
-      current = target.getSettings();
+      searchable = target.getSearchableAttributesSettings();
+      filterable = target.getFilterableAttributesSettings();
+      sortable = target.getSortableAttributesSettings();
     } catch (Exception e) {
       throw new SearchTransportException("Could not read settings for " + index, e);
     }
 
-    if (matches(current.getSearchableAttributes(), index.searchableAttributes())
-        && matches(current.getFilterableAttributes(), index.filterableAttributes())
-        && matches(current.getSortableAttributes(), index.sortableAttributes())) {
-      return;
-    }
-
-    Settings desired = new Settings();
-    desired.setSearchableAttributes(index.searchableAttributes());
-    desired.setFilterableAttributes(index.filterableAttributes());
-    desired.setSortableAttributes(index.sortableAttributes());
     try {
-      target.updateSettings(desired);
-      log.info("Updated Meilisearch settings for {}", index);
+      boolean updated = false;
+      if (!matches(searchable, index.searchableAttributes())) {
+        target.updateSearchableAttributesSettings(index.searchableAttributes());
+        updated = true;
+      }
+      if (!matches(filterable, index.filterableAttributes())) {
+        target.updateFilterableAttributesSettings(index.filterableAttributes());
+        updated = true;
+      }
+      if (!matches(sortable, index.sortableAttributes())) {
+        target.updateSortableAttributesSettings(index.sortableAttributes());
+        updated = true;
+      }
+      if (updated) {
+        log.info("Updated Meilisearch settings for {}", index);
+      }
     } catch (Exception e) {
       throw new SearchTransportException("Could not update settings for " + index, e);
     }

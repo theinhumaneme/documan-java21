@@ -22,7 +22,6 @@ cloudflare:
     secret-access-key: test
     files-bucket: documan-files
     files-bucket-public-access-url: http://localhost:9000/documan-files
-    user-bucket: documan-users
     public-read-acl: false
 
 documan:

@@ -22,7 +22,8 @@ import org.hibernate.annotations.UpdateTimestamp;
     indexes = {
       @Index(name = "idx_file_name", columnList = "name"),
       @Index(name = "idx_file_object_name", columnList = "object_name", unique = true),
-      @Index(name = "idx_file_subject_id", columnList = "subject_id")
+      @Index(name = "idx_file_subject_id", columnList = "subject_id"),
+      @Index(name = "idx_file_folder_id", columnList = "folder_id")
     })
 @Getter
 @Setter
@@ -67,4 +68,20 @@ public class File {
   @JoinColumn(name = "subject_id", nullable = false)
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   private Subject subject;
+
+  /**
+   * The folder this file is filed under. Every file has one.
+   *
+   * <p>Mandatory rather than nullable: there is no such thing as a file loose at the root of a
+   * subject. That removes a second place a file could be and a second listing to keep in step with
+   * it, and it means "where is this filed?" always has an answer.
+   *
+   * <p>{@code subject} is kept alongside it rather than derived through the folder, because every
+   * existing query and the search document reach for it directly and a join per file would be paid
+   * on the hottest read in the application. The invariant is that the folder's subject and this one
+   * are the same, which {@code FileService} maintains by only ever setting them together.
+   */
+  @JoinColumn(name = "folder_id", nullable = false)
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  private Folder folder;
 }

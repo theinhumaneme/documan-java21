@@ -30,8 +30,15 @@
 		<java.version>25</java.version>
 		<awssdk.version>2.51.0</awssdk.version>
 		<meilisearch.version>0.21.0</meilisearch.version>
+		<!-- Must match the version meilisearch-java resolves; see the okhttp-jvm dependency below. -->
+		<okhttp.version>5.3.2</okhttp.version>
 		<mapstruct.version>1.6.3</mapstruct.version>
 		<lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
+		<!--
+		  The 3.x line is the one built against Spring Boot 4; springdoc 2.x targets Boot 3
+		  and will not start here. Bump this and the Boot version together.
+		-->
+		<springdoc.version>3.1.0</springdoc.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -84,6 +91,30 @@
 			<groupId>com.meilisearch.sdk</groupId>
 			<artifactId>meilisearch-java</artifactId>
 			<version>${meilisearch.version}</version>
+		</dependency>
+		<!--
+		  meilisearch-java depends on com.squareup.okhttp3:okhttp:5.3.2, but from OkHttp 5 that
+		  artifact is a Kotlin-Multiplatform metadata module: the jar is 767 bytes and contains no
+		  classes. Gradle substitutes the right variant using Gradle Module Metadata; Maven cannot
+		  read that, so it puts the empty jar on the classpath and the application dies at startup
+		  with NoClassDefFoundError: okhttp3/MediaType as soon as search is enabled.
+
+		  Depending on okhttp-jvm explicitly is the fix — same version, the variant that actually
+		  holds the JVM classes. Remove this once meilisearch-java depends on okhttp-jvm itself.
+		-->
+		<dependency>
+			<groupId>com.squareup.okhttp3</groupId>
+			<artifactId>okhttp-jvm</artifactId>
+			<version>${okhttp.version}</version>
+		</dependency>
+		<!--
+		  Serves /v3/api-docs and Swagger UI, and is what OpenApiExportTest reads to write the
+		  committed openapi.json the TypeScript client is generated from.
+		-->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>${springdoc.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.postgresql</groupId>

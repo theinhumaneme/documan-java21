@@ -8,7 +8,7 @@ package com.documan.service;
 
 import com.documan.exception.StorageException;
 import java.io.IOException;
-import java.nio.file.Path;
+import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,12 +17,14 @@ import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
 /**
  * Thin gateway over the object store. Business rules and database writes live in {@link
@@ -39,12 +41,10 @@ public class CloudflareR2Service {
   private static final Logger log = LoggerFactory.getLogger(CloudflareR2Service.class);
 
   private final S3Client s3Client;
+  private final S3Presigner s3Presigner;
 
   @Value("${cloudflare.r2.files-bucket}")
   private String filesBucket;
-
-  @Value("${cloudflare.r2.user-bucket}")
-  private String userBucket;
 
   /**
    * R2 does not implement S3 ACLs; public exposure is configured on the bucket or via a custom
@@ -53,8 +53,9 @@ public class CloudflareR2Service {
   @Value("${cloudflare.r2.public-read-acl:true}")
   private boolean publicReadAcl;
 
-  public CloudflareR2Service(S3Client s3Client) {
+  public CloudflareR2Service(S3Client s3Client, S3Presigner s3Presigner) {
     this.s3Client = s3Client;
+    this.s3Presigner = s3Presigner;
   }
 
   public void uploadFile(String objectName, MultipartFile file) {
@@ -106,12 +107,38 @@ public class CloudflareR2Service {
     }
   }
 
-  public PutObjectResponse uploadProfilePicture(String key, Path filePath) {
+  /**
+   * A short-lived URL that downloads the object under {@code filename} instead of displaying it.
+   *
+   * <p>The bucket's public URL cannot do this. R2 returns an object with its content type and no
+   * {@code Content-Disposition}, so a browser renders a PDF or an image inline, and a link's {@code
+   * download} attribute is ignored because the bucket is a different origin. Presigning carries
+   * both the disposition and the name as signed query parameters, so nothing about how the object
+   * is stored has to change and the bytes still come from Cloudflare's edge rather than through
+   * this service.
+   *
+   * <p>The name is quoted and stripped of quotes and control characters: it is client-supplied and
+   * goes into a response header, where an unescaped quote would let it inject header content.
+   */
+  public String presignedDownloadUrl(String objectName, String filename, Duration validFor) {
+    String safe = filename.replaceAll("[\"\\\\\\r\\n]", "_");
+    GetObjectRequest get =
+        GetObjectRequest.builder()
+            .bucket(filesBucket)
+            .key(objectName)
+            .responseContentDisposition("attachment; filename=\"%s\"".formatted(safe))
+            .build();
     try {
-      return s3Client.putObject(
-          PutObjectRequest.builder().bucket(userBucket).key(key).build(), filePath);
-    } catch (S3Exception e) {
-      throw new StorageException("Failed to upload profile picture '%s'".formatted(key), e);
+      return s3Presigner
+          .presignGetObject(
+              GetObjectPresignRequest.builder()
+                  .signatureDuration(validFor)
+                  .getObjectRequest(get)
+                  .build())
+          .url()
+          .toString();
+    } catch (RuntimeException e) {
+      throw new StorageException("Failed to sign a download URL for '%s'".formatted(objectName), e);
     }
   }
 

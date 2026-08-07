@@ -5,10 +5,20 @@ cloudflare:
     secret-access-key: <-SECRET ACCESS KEY->
     files-bucket: <-BUCKET NAME->
     files-bucket-public-access-url: <-BUCKET PUBLIC ACCESS URL->
-    user-bucket: <-BUCKET NAME->
     # R2 does not implement S3 ACLs; set false when the bucket is exposed via a public dev URL or
     # a custom domain instead of a canned ACL.
     public-read-acl: true
+
+documan:
+  search:
+    # Set false to run without search: no client, no drainer, no /api/v1/search endpoints, and the
+    # capture layer becomes a no-op. Nothing else changes.
+    enabled: true
+    host: <-MEILISEARCH HOST->
+    api-key: <-MEILISEARCH API KEY->
+    # Index uids are global to a Meilisearch instance, so give every environment its own prefix.
+    # Two deployments sharing a server and a prefix will overwrite each other's documents.
+    index-prefix: documan_
 
 spring:
   devtools:

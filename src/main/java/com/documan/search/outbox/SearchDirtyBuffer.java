@@ -34,6 +34,21 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  *
  * <p>The buffer holds a plain resource rather than entities, so the {@code clearAutomatically} bulk
  * counter updates cannot disturb it.
+ *
+ * <p><strong>A mutating service method must flush before it returns.</strong> Spring calls {@code
+ * beforeCommit} below <em>before</em> {@code EntityTransaction.commit()}, and it is that commit
+ * which makes Hibernate flush. An entity left to be written at commit therefore raises its
+ * {@code @PostUpdate} — and so its dirty key — after this buffer has already written the outbox,
+ * and the change is never indexed. Inserts hide this completely: every entity uses IDENTITY
+ * generation, so the INSERT and {@code @PostPersist} both happen inside {@code persist()}. The
+ * symptom is a newly created row appearing in search correctly while every later edit to it is
+ * ignored.
+ *
+ * <p>Use {@code saveAndFlush} rather than {@code save} (see {@code FileService.rename}), or enqueue
+ * explicitly as {@code SubjectService.update} and the vote and favourite services do. Forcing the
+ * flush from inside this class is not an option: it would need the {@code EntityManagerFactory},
+ * and this bean is constructed by Hibernate's own bean container while that factory is still being
+ * built, so asking for it is a circular reference that stops the application from starting.
  */
 @Component
 public class SearchDirtyBuffer {

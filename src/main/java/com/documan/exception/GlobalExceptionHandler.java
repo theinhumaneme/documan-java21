@@ -58,6 +58,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     return problem(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), TYPE_CONFLICT, request);
   }
 
+  /** Rules spanning more than one field, which bean validation cannot express on its own. */
+  @ExceptionHandler(InvalidRequestException.class)
+  ProblemDetail handleInvalidRequest(InvalidRequestException ex, HttpServletRequest request) {
+    return problem(
+        HttpStatus.BAD_REQUEST, "Invalid request", ex.getMessage(), TYPE_VALIDATION, request);
+  }
+
   @ExceptionHandler(DataIntegrityViolationException.class)
   ProblemDetail handleIntegrity(DataIntegrityViolationException ex, HttpServletRequest request) {
     log.warn("Constraint violation on {}", request.getRequestURI(), ex);

@@ -39,6 +39,7 @@ public class SubjectService {
   private final YearDao yearDao;
   private final SubjectMapper subjectMapper;
   private final SearchOutboxStore searchOutbox;
+  private final FolderService folderService;
 
   public SubjectService(
       SubjectDao subjectDao,
@@ -46,13 +47,15 @@ public class SubjectService {
       SemesterDao semesterDao,
       YearDao yearDao,
       SubjectMapper subjectMapper,
-      SearchOutboxStore searchOutbox) {
+      SearchOutboxStore searchOutbox,
+      FolderService folderService) {
     this.subjectDao = subjectDao;
     this.departmentDao = departmentDao;
     this.semesterDao = semesterDao;
     this.yearDao = yearDao;
     this.subjectMapper = subjectMapper;
     this.searchOutbox = searchOutbox;
+    this.folderService = folderService;
   }
 
   @Cacheable(cacheNames = CacheConfig.SUBJECTS, key = "#subjectId")
@@ -83,7 +86,10 @@ public class SubjectService {
     subject.setDepartment(requireDepartment(request.departmentId()));
     subject.setYear(requireYear(request.yearId()));
     subject.setSemester(requireSemester(request.semesterId()));
-    return subjectMapper.toResponse(subjectDao.save(subject));
+    Subject saved = subjectDao.save(subject);
+    // Same transaction, so the subject is never visible without the folders it was created with.
+    folderService.provisionDefaults(saved, request.defaultFolders());
+    return subjectMapper.toResponse(saved);
   }
 
   @Transactional
@@ -123,10 +129,23 @@ public class SubjectService {
         subject.getSemester().getName());
   }
 
+  /**
+   * Folders go first. Subject deletion has no JPA cascade — {@code Post} is the only entity here
+   * that declares one — so the folder foreign key would otherwise block every subject that was
+   * created with default folders, which is most of them.
+   *
+   * <p>Files are not touched. A subject that still holds files cannot be deleted either way, and
+   * that refusal belongs to the file's own foreign key rather than to a cascade written here:
+   * silently deleting uploaded material as a side effect of removing a subject is not a trade worth
+   * making. Both statements share this transaction, so a subject that turns out to hold files
+   * leaves its folders intact.
+   */
   @Transactional
   @CacheEvict(cacheNames = CacheConfig.SUBJECTS, key = "#subjectId")
   public void delete(Integer subjectId) {
-    subjectDao.delete(requireSubject(subjectId));
+    Subject subject = requireSubject(subjectId);
+    folderService.deleteAllForSubject(subjectId);
+    subjectDao.delete(subject);
   }
 
   private static void apply(

@@ -12,14 +12,13 @@ import com.documan.search.document.PostDocument;
 import com.documan.search.document.SubjectDocument;
 import com.meilisearch.sdk.SearchRequest;
 import java.util.List;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.type.TypeFactory;
 
 /** Query side. Turns request parameters into a Meilisearch query and back into typed documents. */
 @Service
-@ConditionalOnBean(MeilisearchGateway.class)
+@ConditionalOnSearchEnabled
 public class SearchService {
 
   /** Meilisearch's own ceiling on a single page; also protects against a hostile size parameter. */

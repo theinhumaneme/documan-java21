@@ -66,7 +66,6 @@ The current repository is a single backend service. It stores application data i
 - Store file metadata in PostgreSQL; a failed metadata write removes the already-uploaded object.
 - List files for a subject with pagination.
 - Delete removes both the R2 object and its database row.
-- A service method for uploading profile pictures to a separate user-data bucket exists but has no controller.
 
 ### Search
 

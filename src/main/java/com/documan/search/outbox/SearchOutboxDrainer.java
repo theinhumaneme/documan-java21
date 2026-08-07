@@ -21,7 +21,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
@@ -45,7 +44,7 @@ import tools.jackson.databind.ObjectMapper;
  * order, submission order matches application order without extra machinery.
  */
 @Component
-@ConditionalOnBean(MeilisearchGateway.class)
+@ConditionalOnSearchEnabled
 public class SearchOutboxDrainer {
 
   private static final Logger log = LoggerFactory.getLogger(SearchOutboxDrainer.class);
