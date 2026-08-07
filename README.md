@@ -82,13 +82,11 @@ The current repository is a single backend service. It stores application data i
 - Virtual-thread request handling.
 - Meilisearch-backed full-text search kept in step with the database by a transactional outbox.
 - HTTP/2, response compression, and `ETag`/`If-None-Match` on API reads.
-- Hand-maintained OpenAPI 3.1 specification (`openapi.yaml`).
+- OpenAPI 3.1 specification (`openapi.json`), generated from the controller signatures and verified in CI.
 - Spring Boot Actuator and Prometheus registry dependencies.
 - OpenTelemetry Java agent in the container image, pinned and checksum-verified.
-- Nix flake development shell with Java 25, Maven, Gradle, k6, and supporting tools.
+- Nix flake development shell with Java 25, Maven, Gradle, and supporting tools.
 - Spotless formatting with Google Java Format.
-- Bruno request collection, covering every endpoint.
-- GitLab CI with a gating test stage before manual image builds.
 
 ## Technology stack
 
@@ -102,7 +100,7 @@ The current repository is a single backend service. It stores application data i
 | Cache | Spring Cache over Spring Data Redis, Redis 7.4 in the development Compose file |
 | Search engine | Meilisearch v1.52 in the development Compose file |
 | Object storage | Cloudflare R2 via AWS SDK for Java S3 2.51.0 |
-| API documentation | Hand-maintained `openapi.yaml` (OpenAPI 3.1) |
+| API documentation | `openapi.json` (OpenAPI 3.1), generated from the controllers |
 | Security dependency | `spring-boot-starter-security`, currently configured permit-all |
 | Serialization | Jackson 3 |
 | DTO mapping | MapStruct 1.6.3 |
@@ -115,9 +113,6 @@ The current repository is a single backend service. It stores application data i
 | Formatting | Spotless 3.9.0 with Google Java Format 1.36.1 |
 | Testing | JUnit 5, AssertJ, Mockito, Testcontainers 2 |
 | Local environment | Nix flake / direnv, or a manually installed JDK 25 and Maven |
-| API client examples | Bruno |
-| Load-test tooling | k6 |
-| CI | GitLab CI |
 
 ## Architecture
 
@@ -125,7 +120,7 @@ Documan uses a conventional layered monolith:
 
 ```mermaid
 flowchart LR
-    Client[HTTP client / Bruno]
+    Client[HTTP client]
     Etag[ShallowEtagHeaderFilter]
     Security[Spring Security filter chain]
     Controllers[REST controllers]
@@ -169,21 +164,19 @@ flowchart LR
 
 ### Codebase size
 
-- 87 Java main source files, 9 test source files.
-- 15 JPA entities (9 aggregate/reference entities plus 4 join entities, a sealed `Votable` interface and a `VoteType` enum).
-- 13 Spring Data repositories.
-- 13 service classes.
-- 9 REST controllers exposing 54 endpoint mappings.
-- 18 DTO records and 6 MapStruct mappers.
-- 59 Bruno request files.
-- 45 tests (42 run without a container runtime; 3 require Docker).
+- 129 Java main source files, 14 test source files.
+- 15 JPA entities, plus a sealed `Votable` interface and the `VoteType` and `DefaultFolder` enums.
+- 15 Spring Data repositories.
+- 14 service classes.
+- 12 REST controllers exposing 64 endpoint mappings.
+- 25 DTO records and 8 MapStruct mappers.
+- 74 tests. Most need a container runtime: only `SearchFilterTest`, `DocumentFactoryTest` and
+  `PostControllerTest` run without Docker.
 ## Repository layout
 
 ```text
 .
-├── APIs/                         Bruno API collection and development environment
 ├── SQL/                          Reference/seed data and one-off migration scripts
-├── k6-scripts/                   k6 load scenarios
 ├── src/main/java/com/documan/
 │   ├── config/                   Cache manager, web filters, R2 client
 │   ├── controllers/              REST API controllers
@@ -203,14 +196,13 @@ flowchart LR
 │   └── logback.xml               Console and profile-specific file logging
 ├── src/test/java/com/documan/    H2-backed service tests, MockMvc tests, container smoke test
 ├── Dockerfile                    Multi-stage, layered, non-root application image
-├── openapi.yaml                  Hand-maintained OpenAPI 3.1 specification
+├── openapi.json                  OpenAPI 3.1 specification, generated from the controllers
 ├── redis-database.yml            PostgreSQL and Redis development services
 ├── schema.sql                    Schema generated from the JPA mapping
 ├── extract-schema-sql.sh         Regenerates schema.sql
 ├── pom.xml                       Maven build and dependency configuration
 ├── flake.nix                     Reproducible development shell
 ├── Makefile                      Formatting and pre-commit setup commands
-└── .gitlab-ci.yml                Test stage plus manual image build/push jobs
 ```
 
 ## Domain model
@@ -366,24 +358,9 @@ cannot drift from the entities:
 
 Pass `--from-database` to dump a running container instead.
 
-### Upgrading an existing database
-
-`ddl-auto: update` only ever adds. A database created before votes and favourites moved to explicit
-join tables keeps the old `upvoted_posts`, `downvoted_posts`, `favourite_posts`, `favourite_files`,
-`upvoted_comments` and `downvoted_comments` tables, with the existing vote data stranded in them.
-Start the application once so the new tables exist, then run:
-
-```bash
-psql -h localhost -U root -d postgres -f SQL/migrate-legacy-vote-tables.sql
-```
-
-The script moves the rows across, backfills the denormalised counters, renames the `isverified`
-column to `is_verified`, and drops the legacy tables. It is guarded and idempotent, and is a no-op
-on a fresh database.
-
 ## API reference
 
-The full contract is in [`openapi.yaml`](openapi.yaml). Identifiers are query parameters; all
+The full contract is in [`openapi.json`](openapi.json). Identifiers are query parameters; all
 collection endpoints are paginated.
 
 | Method | Path | Purpose |
@@ -418,8 +395,8 @@ collection endpoints are paginated.
 | `POST` `DELETE` | `/api/v1/file` | Upload (`201`), delete (`204`) |
 | `GET` | `/api/v1/role`, `/all`, `/user` | Role reads |
 | `PUT` | `/api/v1/role/promote`, `/api/v1/role/demote` | Change a user's role |
-| `GET` | `/api/v1/department`, `/api/v1/year`, `/api/v1/semester` (+ `/all`) | Reference lookups |
-| `GET` | `/api/v1/search/files`, `/subjects`, `/posts`, `/comments` | Full-text search (see [Search](#search)) |
+| `GET` | `/api/v1/department/all`, `/api/v1/year/all`, `/api/v1/semester/all` | Reference lookups |
+| `GET` | `/api/v1/search/files` | Full-text search (see [Search](#search)) |
 
 ### Vote semantics
 
@@ -491,18 +468,19 @@ Validation failures add a field-keyed `errors` object:
 
 ## Search
 
-Full-text search runs on Meilisearch. Four indexes are maintained: `documan_files`,
-`documan_subjects`, `documan_posts` and `documan_comments`.
+Full-text search runs on Meilisearch. One index is maintained: `documan_files`.
 
 | Index | Searchable | Filterable | Sortable |
 | --- | --- | --- | --- |
 | files | name, extension, subjectName, subjectCode | extension, subjectId, departmentId, yearId, semesterId, lab, theory | name, size, favouriteCount, dateCreated |
-| subjects | name, code | departmentId, yearId, semesterId, lab, theory | name, code |
-| posts | title, description, content, authorUsername | authorId, authorUsername | dateCreated, upvoteCount, netScore |
-| comments | content, authorUsername | postId, authorId | dateCreated, upvoteCount |
 
-Timestamps are indexed as epoch seconds so ranges and sorting work numerically. Post and comment
-bodies are truncated in the index; the full text is served from PostgreSQL.
+Subjects, posts and comments were indexed too and never queried; they were removed before release.
+An index nobody reads still costs a document build and a push on every write to the entity behind
+it, and voting is the hottest write path in the service. The outbox machinery below is
+aggregate-agnostic, so a second index is an entry in `SearchIndex`, one in `AggregateType` and a
+branch in `DocumentFactory`.
+
+Timestamps are indexed as epoch seconds so ranges and sorting work numerically.
 
 ### Keeping the index truthful
 
@@ -693,9 +671,10 @@ tracked separately.
 
 ### Request logging
 
-`RequestFilter` logs the HTTP method, request URL, every request header and every query parameter,
-without redaction. **This will log bearer tokens and cookies once authentication is added.** It
-should be replaced with `ServerHttpObservationFilter` and low-cardinality URI tags before then.
+There is none. A filter that logged every request header and query parameter without redaction was
+removed before release: it would have logged bearer tokens and cookies the moment authentication
+arrived. Enable Tomcat's access log, or add `ServerHttpObservationFilter` with low-cardinality URI
+tags, if request-level visibility is wanted.
 
 ### Actuator and metrics
 
@@ -740,24 +719,9 @@ make init            # install the pre-commit hook
 
 ### API specification
 
-`openapi.yaml` is maintained by hand. When an endpoint, payload or status code changes, update it in
-the same commit. There is no runtime spec generation and no Swagger UI.
-
-### Bruno
-
-Open the `APIs` directory as a Bruno collection; the development environment sets
-`host = http://localhost:8080`.
-
-### k6
-
-`k6-scripts/user.js` runs two scenarios — cached entity reads and paginated collection reads —
-with latency thresholds for each:
-
-```bash
-k6 run k6-scripts/user.js
-```
-
-Override `BASE_URL`, `USER_ID` and `POST_ID` via environment variables.
+`openapi.json` is generated from the controller signatures by `OpenApiExportTest`, so it cannot
+drift from the code. Regenerate it with `make openapi` and commit the result; `make verify-generated`
+fails when the committed copy is behind.
 
 ## Containerization and CI
 
@@ -841,13 +805,11 @@ Two suites need no container and run anywhere: `SearchFilterTest` and `DocumentF
 - Identifiers are query parameters rather than path variables.
 - The caller supplies `userId` on write operations; there is no authenticated principal to derive it
   from yet.
-- `openapi.yaml` is maintained by hand and can drift if a change lands without updating it.
 
 ### Persistence
 
 - `ddl-auto: update` is not a controlled migration strategy: it never drops or alters, so
-  destructive or renaming changes need a hand-written script (see
-  `SQL/migrate-legacy-vote-tables.sql`).
+  destructive or renaming changes need a hand-written script.
 - Seed scripts are not idempotent.
 - The seed password is not hashed.
 
