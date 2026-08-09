@@ -24,6 +24,7 @@ import software.amazon.awssdk.services.s3.S3Client;
  * suite, then copy the generated file over. It also fails if a table the application depends on
  * stops being generated, which is the drift that left the previous snapshot stale.
  */
+@ResourceServerTestProperties
 @SpringBootTest(
     properties = {
       "spring.jpa.hibernate.ddl-auto=none",

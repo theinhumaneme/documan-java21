@@ -1,0 +1,82 @@
+# Deployment profile.
+#
+# Every value here comes from the environment, and — unlike application-dev.yml —
+# almost nothing has a default. A missing database password should stop the
+# service at startup with the name of what is missing, not start it against
+# something that happens to be reachable.
+#
+# The exceptions are settings that are a decision rather than a credential:
+# pool sizes, an index prefix, whether search is on. Those get defaults because
+# a deployment that does not care should not have to state them.
+#
+# Nothing in this file is secret. It is a list of the variable names the
+# container expects, which is exactly what you want checked in — see the
+# compose file and .env.example alongside it.
+
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN:5}
+      idle-timeout: 30000
+      connection-timeout: 30000
+      max-lifetime: 1800000
+      leak-detection-threshold: 30000
+      auto-commit: false
+      pool-name: HikariPool
+
+  jpa:
+    database: postgresql
+    show-sql: false
+    # `update` is what the development profile uses and what the schema has been
+    # built by so far. It is the wrong tool for a database with data in it — it
+    # adds and never removes, and it will not tell you what it is about to do.
+    # Set DDL_AUTO=validate once a migration tool owns the schema.
+    hibernate:
+      ddl-auto: ${DDL_AUTO:update}
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      timeout: 2s
+      lettuce:
+        pool:
+          enabled: true
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+          max-wait: 2s
+
+documan:
+  search:
+    enabled: ${SEARCH_ENABLED:true}
+    host: ${MEILI_HOST}
+    api-key: ${MEILI_MASTER_KEY}
+    # Index uids are global to a Meilisearch instance, so two deployments sharing
+    # one server overwrite each other's documents unless this differs.
+    index-prefix: ${MEILI_INDEX_PREFIX:documan_prod_}
+    reconcile:
+      enabled: ${SEARCH_RECONCILE_ENABLED:true}
+
+cloudflare:
+  r2:
+    endpoint: ${R2_ENDPOINT}
+    access-key-id: ${R2_ACCESS_KEY_ID}
+    secret-access-key: ${R2_SECRET_ACCESS_KEY}
+    files-bucket: ${R2_FILES_BUCKET}
+    files-bucket-public-access-url: ${R2_FILES_PUBLIC_URL}
+    public-read-acl: ${R2_PUBLIC_READ_ACL:false}
+
+logging:
+  level:
+    com.documan: ${LOG_LEVEL:info}
+    org.springframework.web: warn
+    org.hibernate: warn
+    # Deliberately not debug here. It is useful locally and it names claim values.
+    org.springframework.security: warn

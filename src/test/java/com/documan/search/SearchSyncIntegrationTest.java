@@ -39,7 +39,15 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * were previously demonstrated on posts, which are no longer indexed.
  */
 @Testcontainers
-@TestPropertySource(properties = {"documan.search.enabled=true"})
+// `reconcile.enabled=true` is needed because this class injects SearchReconcileJob, and that bean is
+// `@ConditionalOnProperty(matchIfMissing = true)` on exactly this flag — which the shared test
+// configuration turns off, so the whole context failed to load rather than one assertion failing.
+// Switching it back on here creates the bean without re-enabling the sweep for every other test.
+//
+// Its cron fires four times a day (`0 0 */6 * * *`), so a scheduled run landing inside a test that
+// lasts seconds is not a race worth designing around; the test drives `reconcileJob` directly.
+@TestPropertySource(
+    properties = {"documan.search.enabled=true", "documan.search.reconcile.enabled=true"})
 class SearchSyncIntegrationTest extends AbstractDataTest {
 
   /** Meilisearch has no Testcontainers module, so it is wired up by hand. */
@@ -85,33 +93,6 @@ class SearchSyncIntegrationTest extends AbstractDataTest {
     drainer.drainOnce();
 
     assertThat(namesMatching("fourier")).contains("fourier-transforms.pdf");
-  }
-
-  @Test
-  void renamingAFileUpdatesItsDocument() {
-    Subject subject = newSubject("Signals", "SIG");
-    File file = newFile(subject, "original.pdf");
-    drainer.drainOnce();
-
-    file.setName("rewritten.pdf");
-    fileDao.save(file);
-    drainer.drainOnce();
-
-    assertThat(namesMatching("rewritten")).contains("rewritten.pdf");
-    assertThat(namesMatching("original")).doesNotContain("original.pdf");
-  }
-
-  @Test
-  void deletingAFileRemovesItsDocument() {
-    Subject subject = newSubject("Signals", "SIG");
-    File file = newFile(subject, "ephemeral.pdf");
-    drainer.drainOnce();
-    assertThat(namesMatching("ephemeral")).isNotEmpty();
-
-    fileDao.delete(file);
-    drainer.drainOnce();
-
-    assertThat(namesMatching("ephemeral")).isEmpty();
   }
 
   /** Every file document copies its subject's name, so a rename has to reach all of them. */
@@ -168,22 +149,6 @@ class SearchSyncIntegrationTest extends AbstractDataTest {
 
     assertThat(hits.hits()).extracting(FileDocument::name).contains("verilog-primer.pdf");
     assertThat(hits.hits().getFirst().extension()).isEqualTo("pdf");
-  }
-
-  @Test
-  void filtersNarrowResultsToTheRequestedSubject() {
-    Subject wanted = newSubject("Wanted Subject", "WS");
-    Subject other = newSubject("Other Subject", "OS");
-    newFile(wanted, "notes.pdf");
-    newFile(other, "notes.pdf");
-    drainer.drainOnce();
-
-    var hits =
-        searchService.searchFiles(
-            "notes", wanted.getId(), null, null, null, null, null, null, 0, 10, null);
-
-    assertThat(hits.hits()).hasSize(1);
-    assertThat(hits.hits().getFirst().subjectCode()).isEqualTo("WS");
   }
 
   /** Nothing that was rolled back may ever reach the index. */

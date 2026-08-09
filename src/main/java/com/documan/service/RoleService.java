@@ -12,7 +12,9 @@ import com.documan.dao.UserDao;
 import com.documan.dto.response.RoleResponse;
 import com.documan.dto.response.UserResponse;
 import com.documan.entity.Role;
+import com.documan.entity.RoleName;
 import com.documan.entity.User;
+import com.documan.exception.InvalidRequestException;
 import com.documan.exception.ResourceNotFoundException;
 import com.documan.mapper.ReferenceMapper;
 import com.documan.mapper.UserMapper;
@@ -68,19 +70,33 @@ public class RoleService {
     return changeRole(userId, roleId, false);
   }
 
-  /** Privilege ordering is by numeric role id, matching the seeded regular/moderator/admin rows. */
+  /**
+   * Privilege ordering comes from {@link RoleName}, not from the row's id.
+   *
+   * <p>It was the id, which held only as long as the seed script inserted the three roles in
+   * ascending order of authority. Adding {@code maintainer} broke that: it ranks below a moderator
+   * but an identity column can only append, so by id it outranked every role including admin, and
+   * "promote to maintainer" would have been the strongest promotion available.
+   *
+   * <p>Refusing a sideways move — promoting to the role someone already holds — is deliberate. It
+   * is always a mistake on the caller's part, and answering 200 would report a change that did not
+   * happen.
+   */
   private UserResponse changeRole(Integer userId, Integer roleId, boolean promoting) {
     User user = requireUser(userId);
     Role target = requireRole(roleId);
-    int current = user.getRole().getId();
+    int targetRank = RoleName.of(target.getName()).rank();
+    int currentRank = RoleName.of(user.getRole().getName()).rank();
 
-    if (promoting && roleId <= current) {
-      throw new IllegalArgumentException(
-          "Role %d does not rank above the user's current role %d".formatted(roleId, current));
+    if (promoting && targetRank <= currentRank) {
+      throw new InvalidRequestException(
+          "'%s' does not rank above the user's current role '%s'"
+              .formatted(target.getName(), user.getRole().getName()));
     }
-    if (!promoting && roleId >= current) {
-      throw new IllegalArgumentException(
-          "Role %d does not rank below the user's current role %d".formatted(roleId, current));
+    if (!promoting && targetRank >= currentRank) {
+      throw new InvalidRequestException(
+          "'%s' does not rank below the user's current role '%s'"
+              .formatted(target.getName(), user.getRole().getName()));
     }
 
     user.setRole(target);

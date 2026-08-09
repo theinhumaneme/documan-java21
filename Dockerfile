@@ -61,14 +61,20 @@ ENV OTEL_METRIC_EXPORT_INTERVAL=10000
 ENV OTEL_METRICS_EXEMPLAR_FILTER=ALWAYS_ON
 
 # MaxRAMPercentage rather than a fixed -Xmx so the heap tracks the container limit.
-# AutoCreateSharedArchive writes a CDS archive on first start and reuses it afterwards, which cuts
-# startup on any deployment that gives the container a writable volume at /application/cds.
+#
+# There was a CDS archive here — AutoCreateSharedArchive writing to /application/cds, plus
+# UnlockDiagnosticVMOptions and AllowArchivingWithJavaAgent to stop the agent and the dump refusing
+# to coexist. It was removed after being measured rather than assumed.
+#
+# AutoCreateSharedArchive dumps the archive when the JVM *exits*, and on the deployment this was
+# aimed at the JVM never finished exiting: given a 90 second stop grace period it used all of it and
+# was killed, every time, so the archive was never written. What the flags actually bought was 90
+# seconds added to every stop and a wall of "cannot be archived" warnings on every start. Four
+# flags, a volume and a chowned directory, to make deploys slower.
+#
+# Worth revisiting only where the JVM can be shown to exit cleanly and quickly. It could not here.
 ENV JAVA_OPTS="-javaagent:/application/otel.jar \
--XX:MaxRAMPercentage=75 \
--XX:+AutoCreateSharedArchive \
--XX:SharedArchiveFile=/application/cds/application.jsa"
-
-RUN mkdir -p /application/cds && chown documan:documan /application/cds
+-XX:MaxRAMPercentage=75"
 
 USER documan
 EXPOSE 8080

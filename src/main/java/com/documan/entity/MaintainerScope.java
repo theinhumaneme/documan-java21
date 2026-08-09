@@ -37,8 +37,8 @@ import org.hibernate.annotations.CreationTimestamp;
  * <p><strong>This shapes the interface; it does not secure anything.</strong> The application has
  * no authentication — {@code WebSecurityConfig} still permits every request — so nothing here can
  * be enforced against a caller who does not go through the client. The rows are real and the checks
- * are written; what is missing is a principal to check them against. When the Entra ID resource
- * server lands, this becomes the authorisation rule and needs no other change.
+ * are written; what is missing is a principal to check them against. When the resource server
+ * lands, this becomes the authorisation rule and needs no other change.
  */
 @Entity
 @Table(

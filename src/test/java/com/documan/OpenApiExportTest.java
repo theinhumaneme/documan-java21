@@ -46,6 +46,7 @@ import software.amazon.awssdk.services.s3.S3Client;
  * the {@code Client} bean only holds configuration, and {@code IndexBootstrap} catches the failure
  * to reach a server and logs a warning.
  */
+@ResourceServerTestProperties
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(DatastoreContainers.class)

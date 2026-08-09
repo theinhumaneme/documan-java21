@@ -9,6 +9,8 @@ package com.documan.service;
 import com.documan.config.CacheConfig;
 import com.documan.dao.*;
 import com.documan.dto.request.CreateUserRequest;
+import com.documan.dto.request.UpdatePermissionsRequest;
+import com.documan.dto.request.UpdateProfileRequest;
 import com.documan.dto.request.UpdateUserRequest;
 import com.documan.dto.response.*;
 import com.documan.entity.*;
@@ -33,7 +35,7 @@ import org.springframework.util.StringUtils;
 public class UserService {
 
   /** New accounts always start on the lowest-privilege role. */
-  private static final int DEFAULT_ROLE_ID = 1;
+  private static final RoleName DEFAULT_ROLE = RoleName.REGULAR;
 
   private final UserDao userDao;
   private final SubjectDao subjectDao;
@@ -142,8 +144,9 @@ public class UserService {
     user.setSemester(requireSemester(request.semesterId()));
     user.setRole(
         roleDao
-            .findById(DEFAULT_ROLE_ID)
-            .orElseThrow(() -> new ResourceNotFoundException("Role", DEFAULT_ROLE_ID)));
+            .findByName(DEFAULT_ROLE.value())
+            .orElseThrow(
+                () -> new ResourceNotFoundException("Role '%s'".formatted(DEFAULT_ROLE.value()))));
     return userMapper.toResponse(userDao.save(user));
   }
 
@@ -193,6 +196,47 @@ public class UserService {
       onUsernameChanged(userId);
     }
     return userMapper.toResponse(saved);
+  }
+
+  /**
+   * File a reader against a department, year and semester, and record that they accepted the terms.
+   *
+   * <p>Theirs to set, unlike {@link #updatePermissions}, which is a moderator's. Nothing here is a
+   * privilege: it decides which shelf of the library they are shown first.
+   */
+  @Transactional
+  @CachePut(cacheNames = CacheConfig.USERS, key = "#userId")
+  public UserResponse updateProfile(Integer userId, UpdateProfileRequest request) {
+    User user = requireUser(userId);
+    user.setDepartment(requireDepartment(request.departmentId()));
+    user.setYear(requireYear(request.yearId()));
+    user.setSemester(requireSemester(request.semesterId()));
+    user.setAcceptedTermsOfService(request.acceptedTermsOfService());
+    return userMapper.toResponse(userDao.save(user));
+  }
+
+  /**
+   * Grant or withdraw what an account may do.
+   *
+   * <p>Deliberately narrow. Nothing here touches the username, so none of the denormalised-username
+   * invalidation below applies, and nothing touches department, year or semester, so this works on
+   * an account just provisioned from a token — which {@link #update} cannot, because it requires
+   * all three.
+   */
+  @Transactional
+  @CachePut(cacheNames = CacheConfig.USERS, key = "#userId")
+  public UserResponse updatePermissions(Integer userId, UpdatePermissionsRequest request) {
+    User user = requireUser(userId);
+    if (request.canPost() != null) {
+      user.setCanPost(request.canPost());
+    }
+    if (request.canComment() != null) {
+      user.setCanComment(request.canComment());
+    }
+    if (request.verified() != null) {
+      user.setVerified(request.verified());
+    }
+    return userMapper.toResponse(userDao.save(user));
   }
 
   /**

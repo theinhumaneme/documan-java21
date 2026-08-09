@@ -65,13 +65,19 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
-		<!--
-		  Security is on the classpath but intentionally permissive for now; the Entra ID
-		  resource-server wiring is tracked separately from this performance work.
-		-->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+		<!--
+		  Entra ID is the identity provider and the browser holds the token, so this service is a
+		  resource server and never a client: it validates a bearer JWT and issues none. That is why
+		  this is the resource-server starter rather than oauth2-client — there is no authorization
+		  code to redeem here and no client secret to keep.
+		-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
 		</dependency>
 		<!-- Lettuce connection pooling -->
 		<dependency>

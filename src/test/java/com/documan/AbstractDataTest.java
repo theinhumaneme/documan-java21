@@ -22,6 +22,7 @@ import software.amazon.awssdk.services.s3.S3Client;
  *
  * <p>The object-store client is mocked; storage behaviour is covered separately.
  */
+@ResourceServerTestProperties
 @SpringBootTest
 @Import(DatastoreContainers.class)
 public abstract class AbstractDataTest {
@@ -33,6 +34,7 @@ public abstract class AbstractDataTest {
   @Autowired protected CommentDao commentDao;
   @Autowired protected SubjectDao subjectDao;
   @Autowired protected FileDao fileDao;
+  @Autowired protected FolderDao folderDao;
   @Autowired protected RoleDao roleDao;
   @Autowired protected YearDao yearDao;
   @Autowired protected SemesterDao semesterDao;
@@ -59,6 +61,9 @@ public abstract class AbstractDataTest {
     commentDao.deleteAll();
     postDao.deleteAll();
     fileDao.deleteAll();
+    // Between files and subjects: a folder holds files and belongs to a subject, so deleting it
+    // earlier orphans rows and deleting it later violates the subject's foreign key.
+    folderDao.deleteAll();
     subjectDao.deleteAll();
     userDao.deleteAll();
 
@@ -135,6 +140,14 @@ public abstract class AbstractDataTest {
     return subjectDao.save(subject);
   }
 
+  /**
+   * A file in a folder, because there is no other kind.
+   *
+   * <p>This used to leave {@code folder} null and stopped working when the column became {@code not
+   * null} — the fixture fell behind the entity, and every test that filed anything failed on a
+   * constraint rather than on what it was testing. A folder is made on demand rather than asked for,
+   * so the callers stay about favourites and cascades instead of about scaffolding.
+   */
   protected File newFile(Subject subject, String name) {
     File file = new File();
     file.setName(name);
@@ -142,6 +155,22 @@ public abstract class AbstractDataTest {
     file.setObjectURL("http://localhost/obj-" + name);
     file.setSize(1024L);
     file.setSubject(subject);
+    file.setFolder(defaultFolderFor(subject));
     return fileDao.save(file);
+  }
+
+  /** One folder per subject, reused, so a test filing several files gets one place to put them. */
+  private Folder defaultFolderFor(Subject subject) {
+    return folderDao
+        .findBySubjectIdAndSlug(subject.getId(), DefaultFolder.COURSEFILES.slug())
+        .orElseGet(
+            () -> {
+              Folder folder = new Folder();
+              folder.setName(DefaultFolder.COURSEFILES.displayName());
+              folder.setSlug(DefaultFolder.COURSEFILES.slug());
+              folder.setDefaultFolder(true);
+              folder.setSubject(subject);
+              return folderDao.save(folder);
+            });
   }
 }

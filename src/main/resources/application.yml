@@ -62,6 +62,25 @@ spring:
         max-page-size: 100
         one-indexed-parameters: false
 
+  # Clerk. The publishable key sits in the client; nothing secret is needed here, because a session
+  # token is verified against Clerk's published signing keys rather than by asking Clerk about it.
+  #
+  # Both URLs come from the instance's own discovery document —
+  # <frontend-api>/.well-known/openid-configuration — rather than being assembled by hand. A
+  # development instance publishes on <slug>.clerk.accounts.dev and a production one on your own
+  # domain, so these move together when the instance does.
+  #
+  #   CLERK_ISSUER_URI     the `iss` the tokens carry, exactly
+  #   CLERK_JWK_SET_URI    where its signing keys are published
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${CLERK_ISSUER_URI:https://fleet-lizard-10.clerk.accounts.dev}
+          # Named rather than discovered — see WebSecurityConfig.jwtDecoder for why the service must
+          # not need Clerk to be reachable in order to start.
+          jwk-set-uri: ${CLERK_JWK_SET_URI:https://fleet-lizard-10.clerk.accounts.dev/.well-known/jwks.json}
+
 server:
   port: 8080
   http2:
@@ -83,6 +102,17 @@ server:
       min-spare: 10
 
 documan:
+  auth:
+    # Checked by AudienceValidator, which is skipped when this is blank.
+    #
+    # Blank is the honest default for Clerk. A Clerk session token carries no `aud` unless the JWT
+    # template sets one, and the issuer above is already a single instance belonging to this
+    # application alone — there is no second API in it that could hold a token this service would
+    # then wrongly accept, which is the whole risk an audience check answers. Set it here and in the
+    # template's audience field together, or leave both empty; a value set on only one side rejects
+    # every request.
+    audience: ${CLERK_AUDIENCE:}
+
   search:
     # Which Meilisearch to talk to — enabled, host, api-key, index-prefix — lives in the profile
     # files, not here. Those four differ per environment: the host and key are per-deployment, the

@@ -13,6 +13,7 @@ import com.documan.service.FolderService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -37,6 +38,7 @@ public class FolderController {
 
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
+  @PreAuthorize("@permissions.mayEditSubject(#subjectId)")
   public FolderResponse createFolder(
       @RequestParam("subjectId") Integer subjectId,
       @Valid @RequestBody CreateFolderRequest request) {
@@ -44,6 +46,7 @@ public class FolderController {
   }
 
   @PutMapping
+  @PreAuthorize("@permissions.mayEditFolder(#folderId)")
   public FolderResponse updateFolder(
       @RequestParam("folderId") Integer folderId, @Valid @RequestBody UpdateFolderRequest request) {
     return folderService.rename(folderId, request);
@@ -51,6 +54,7 @@ public class FolderController {
 
   @DeleteMapping
   @ResponseStatus(HttpStatus.NO_CONTENT)
+  @PreAuthorize("@permissions.mayEditFolder(#folderId)")
   public void deleteFolder(@RequestParam("folderId") Integer folderId) {
     folderService.delete(folderId);
   }

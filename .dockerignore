@@ -37,3 +37,22 @@ README.md
 .gitattributes
 .dockerignore
 persist
+
+# The development profile, which is gitignored but sits on disk and would
+# otherwise be compiled into the published jar. It carries R2 endpoint, key id
+# and secret as literal defaults — described in the file as placeholders, but
+# they are the shape of a credential and this image is pushed to a public
+# registry. Deployment reads application-production.yml, which has no values in
+# it at all, so nothing here needs the dev one.
+#
+# A consequence worth knowing: an image built with ENV=dev now starts on a
+# profile whose configuration file is absent. That is the right trade — a dev
+# image is not a thing you want; `mvn spring-boot:run -Pdev` is how you run
+# locally.
+src/main/resources/application-dev.yml
+
+# Local tooling and anything env-shaped.
+.env
+.env.*
+.claude/
+.vscode/

@@ -22,6 +22,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -46,6 +48,29 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
   private static final URI TYPE_SEARCH =
       URI.create("https://documan.dev/problems/search-unavailable");
   private static final URI TYPE_INTERNAL = URI.create("https://documan.dev/problems/internal");
+  private static final URI TYPE_AUTH = URI.create("https://documan.dev/problems/unauthenticated");
+  private static final URI TYPE_FORBIDDEN = URI.create("https://documan.dev/problems/forbidden");
+
+  /**
+   * Security failures raised inside the dispatch rather than by the filter chain — a
+   * {@code @PreAuthorize} on a controller or service method, or {@link
+   * com.documan.security.CurrentUser#require()} on a request that turned out to be anonymous. The
+   * chain's own rejections never reach here; those are translated before the DispatcherServlet.
+   *
+   * <p>These two exist because of the {@code Exception} catch-all below. Without them Spring
+   * Security's exceptions match it and every authorisation failure is reported as a 500 — a client
+   * cannot tell "sign in again" from "the server is broken", and the log fills with stack traces
+   * for requests that were correctly refused.
+   */
+  @ExceptionHandler(AuthenticationException.class)
+  ProblemDetail handleUnauthenticated(AuthenticationException ex, HttpServletRequest request) {
+    return problem(HttpStatus.UNAUTHORIZED, "Not signed in", ex.getMessage(), TYPE_AUTH, request);
+  }
+
+  @ExceptionHandler(AccessDeniedException.class)
+  ProblemDetail handleForbidden(AccessDeniedException ex, HttpServletRequest request) {
+    return problem(HttpStatus.FORBIDDEN, "Not permitted", ex.getMessage(), TYPE_FORBIDDEN, request);
+  }
 
   @ExceptionHandler(ResourceNotFoundException.class)
   ProblemDetail handleNotFound(ResourceNotFoundException ex, HttpServletRequest request) {

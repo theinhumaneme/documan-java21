@@ -12,6 +12,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface UserDao extends JpaRepository<User, Integer> {
 
+  /** How a token finds its row. See {@code User.externalId} for why not by username. */
+  Optional<User> findByExternalId(String externalId);
+
   Optional<User> findByUsername(String username);
 
   Optional<User> findByEmail(String email);

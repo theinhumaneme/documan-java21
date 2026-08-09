@@ -1,4 +1,12 @@
-COMPOSE := docker compose -f redis-database.yml
+# The datastore compose file lives in the deployment repository, one level up,
+# because two of the three topologies belong to the deployment rather than to this
+# service. Resolved rather than hardcoded so a standalone clone of this repository
+# — where there is no parent — fails with "no compose file" instead of silently
+# starting nothing.
+DATASTORES := $(firstword $(wildcard ../docker-compose.datastores.yml docker-compose.datastores.yml))
+COMPOSE := docker compose -f $(DATASTORES)
+
+.PHONY: format init up down dev
 
 format:
 	@mvn spotless:apply

@@ -25,6 +25,7 @@ import com.documan.search.outbox.SearchOutboxStore;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,15 +68,30 @@ public class SubjectService {
     return PageResponse.from(subjectDao.findAll(pageable).map(subjectMapper::toResponse));
   }
 
+  /**
+   * The subjects filed at one address — the library's busiest read.
+   *
+   * <p>The address used to be validated first, three {@code findById} calls before the query that
+   * answers the question, on every single browse. They exist to tell "no such department" apart from
+   * "nothing filed there", which is worth saying — but a page that came back with rows has proved
+   * the address exists, so asking beforehand is three round-trips to learn what the answer already
+   * shows. They are now asked only when nothing came back, which is the sole case where the
+   * distinction is visible. The common path loses three queries and the 404 is unchanged.
+   *
+   * <p>An empty page past the end of a real result set pays for the checks too. That is a request
+   * for page nine of a two-page listing, and it is not worth a cheaper shape than this.
+   */
   public PageResponse<SubjectResponse> findBy(
       Integer departmentId, Integer yearId, Integer semesterId, Pageable pageable) {
-    requireDepartment(departmentId);
-    requireYear(yearId);
-    requireSemester(semesterId);
-    return PageResponse.from(
-        subjectDao
-            .findByDepartmentIdAndYearIdAndSemesterId(departmentId, yearId, semesterId, pageable)
-            .map(subjectMapper::toResponse));
+    Page<Subject> page =
+        subjectDao.findByDepartmentIdAndYearIdAndSemesterId(
+            departmentId, yearId, semesterId, pageable);
+    if (page.isEmpty()) {
+      requireDepartment(departmentId);
+      requireYear(yearId);
+      requireSemester(semesterId);
+    }
+    return PageResponse.from(page.map(subjectMapper::toResponse));
   }
 
   @Transactional

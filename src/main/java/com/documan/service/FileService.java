@@ -42,6 +42,7 @@ public class FileService {
   private final FolderDao folderDao;
   private final CloudflareR2Service storage;
   private final FileMapper fileMapper;
+  private final FileRecorder recorder;
 
   @Value("${cloudflare.r2.files-bucket-public-access-url}")
   private String publicAccessUrl;
@@ -51,12 +52,14 @@ public class FileService {
       SubjectDao subjectDao,
       FolderDao folderDao,
       CloudflareR2Service storage,
-      FileMapper fileMapper) {
+      FileMapper fileMapper,
+      FileRecorder recorder) {
     this.fileDao = fileDao;
     this.subjectDao = subjectDao;
     this.folderDao = folderDao;
     this.storage = storage;
     this.fileMapper = fileMapper;
+    this.recorder = recorder;
   }
 
   /** Everything filed against a subject, across all of its folders. */
@@ -85,13 +88,22 @@ public class FileService {
    * which subject it belongs to — asking for both would introduce a pair that can disagree, and
    * then a check to catch it. A subject with no folders yet cannot receive an upload, which is the
    * intended answer: make somewhere to put it first.
+   *
+   * <p><b>Deliberately not {@code @Transactional}.</b> The transfer to Cloudflare is the long part
+   * and needs no transaction; wrapping it in one held a pooled connection for its whole duration and
+   * turned a bulk upload into a pool outage for every other request. The two database steps are
+   * {@link FileRecorder}'s, each brief and each committing on its own, with the connection returned
+   * to the pool while the bytes move.
+   *
+   * <p>The window this opens is real and is the reason for the {@code deleteQuietly}: between the
+   * PUT and the insert there is an object in the bucket with no row naming it. A crash in that
+   * window leaks it, where before it would have rolled back. That is the trade — an occasional
+   * orphaned object against a connection pool that survives someone uploading a folder — and the
+   * orphan is the cheaper failure. The README already notes there is no reconciliation job for
+   * objects orphaned out of band; this widens the case for one slightly.
    */
-  @Transactional
   public FileResponse upload(MultipartFile file, Integer folderId) {
-    Folder folder =
-        folderDao
-            .findById(folderId)
-            .orElseThrow(() -> new ResourceNotFoundException("Folder", folderId));
+    Folder folder = recorder.destination(folderId);
 
     String originalName =
         StringUtils.hasText(file.getOriginalFilename()) ? file.getOriginalFilename() : "unnamed";
@@ -106,7 +118,7 @@ public class FileService {
       entity.setSize(file.getSize());
       entity.setFolder(folder);
       entity.setSubject(folder.getSubject());
-      return fileMapper.toResponse(fileDao.save(entity));
+      return fileMapper.toResponse(recorder.record(entity));
     } catch (RuntimeException e) {
       storage.deleteQuietly(objectName);
       throw e;
