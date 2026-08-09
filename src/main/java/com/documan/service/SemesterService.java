@@ -7,29 +7,25 @@
 package com.documan.service;
 
 import com.documan.dao.SemesterDao;
-import com.documan.entity.Semester;
+import com.documan.dto.response.SemesterResponse;
+import com.documan.mapper.ReferenceMapper;
 import java.util.List;
-import java.util.Optional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Transactional(readOnly = true)
 public class SemesterService {
-  private static final Logger log = LoggerFactory.getLogger(SemesterService.class);
+
   private final SemesterDao semesterDao;
+  private final ReferenceMapper referenceMapper;
 
-  @Autowired
-  public SemesterService(SemesterDao semesterDao) {
+  public SemesterService(SemesterDao semesterDao, ReferenceMapper referenceMapper) {
     this.semesterDao = semesterDao;
+    this.referenceMapper = referenceMapper;
   }
 
-  public Optional<Semester> getSemesterById(Integer semesterId) {
-    return semesterDao.findById(semesterId);
-  }
-
-  public Optional<List<Semester>> getAllSemesters() {
-    return Optional.of(semesterDao.findAll());
+  public List<SemesterResponse> findAll() {
+    return semesterDao.findAll().stream().map(referenceMapper::toResponse).toList();
   }
 }

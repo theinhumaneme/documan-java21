@@ -6,124 +6,105 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.service;
 
+import com.documan.config.CacheConfig;
 import com.documan.dao.PostDao;
 import com.documan.dao.UserDao;
+import com.documan.dto.request.CreatePostRequest;
+import com.documan.dto.request.UpdatePostRequest;
+import com.documan.dto.response.PageResponse;
+import com.documan.dto.response.PostResponse;
 import com.documan.entity.Post;
 import com.documan.entity.User;
-import java.util.List;
-import java.util.Optional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.documan.exception.ResourceNotFoundException;
+import com.documan.mapper.PostMapper;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Transactional(readOnly = true)
 public class PostService {
-  private static final Logger log = LoggerFactory.getLogger(PostService.class);
+
   private final PostDao postDao;
-  private final CommentService commentService;
   private final UserDao userDao;
-  private final RedisCacheService redisCacheService;
+  private final PostMapper postMapper;
 
-  @Autowired
-  public PostService(
-      PostDao postDao,
-      CommentService commentService,
-      UserDao userDao,
-      RedisCacheService redisCacheService) {
+  public PostService(PostDao postDao, UserDao userDao, PostMapper postMapper) {
     this.postDao = postDao;
-    this.commentService = commentService;
     this.userDao = userDao;
-    this.redisCacheService = redisCacheService;
+    this.postMapper = postMapper;
   }
 
-  public Optional<Post> findById(Integer postId) {
-    String postKey = String.format("POST%s", postId);
-    Optional<Post> cachedEntity = redisCacheService.getValue(postKey, Post.class);
-    if (cachedEntity.isEmpty()) {
-      log.error("Post {} not found in cache", postId);
-      Optional<Post> post = postDao.findById(postId);
-      if (post.isPresent()) {
-        Optional<Post> cachedPost = redisCacheService.setValue(postKey, post.get());
-        if (cachedPost.isEmpty()) {
-          log.error("Failed to cache Post {}", postId);
-        } else {
-          log.info("cached Post {}", postId);
-        }
-        return post; // return user from db cache if exists
-      } else {
-        return Optional.empty();
-      }
-    } else {
-      log.info("Post {} found in cache", postId);
+  @Cacheable(cacheNames = CacheConfig.POSTS, key = "#postId")
+  public PostResponse findById(Integer postId) {
+    return postMapper.toResponse(requirePost(postId));
+  }
+
+  /** Previously returned every post in the table with no upper bound. */
+  public PageResponse<PostResponse> findAll(Pageable pageable) {
+    return PageResponse.from(postDao.findAll(pageable).map(postMapper::toResponse));
+  }
+
+  public PageResponse<PostResponse> findByUser(Integer userId, Pageable pageable) {
+    requireUserExists(userId);
+    return PageResponse.from(postDao.findByUserId(userId, pageable).map(postMapper::toResponse));
+  }
+
+  @Transactional
+  @CachePut(cacheNames = CacheConfig.POSTS, key = "#result.id()")
+  public PostResponse create(CreatePostRequest request, Integer userId) {
+    User author = requireUser(userId);
+
+    Post post = new Post();
+    post.setTitle(request.title());
+    post.setDescription(request.description());
+    post.setContent(request.content());
+    post.setAnnouncement(request.announcement());
+    post.setUser(author);
+    return postMapper.toResponse(postDao.save(post));
+  }
+
+  @Transactional
+  @CachePut(cacheNames = CacheConfig.POSTS, key = "#postId")
+  public PostResponse update(Integer postId, UpdatePostRequest request) {
+    Post post = requirePost(postId);
+    post.setTitle(request.title());
+    post.setDescription(request.description());
+    post.setContent(request.content());
+    post.setCommentsClosed(request.commentsClosed());
+    post.setAnnouncement(request.announcement());
+    return postMapper.toResponse(postDao.save(post));
+  }
+
+  /**
+   * Evicts the post entry. The previous implementation evicted {@code COMMENT{id}} here, which both
+   * left a stale post cached and could drop an unrelated comment sharing the numeric id.
+   */
+  @Transactional
+  @CacheEvict(cacheNames = CacheConfig.POSTS, key = "#postId")
+  public void delete(Integer postId) {
+    Post post = requirePost(postId);
+    postDao.delete(post);
+  }
+
+  private Post requirePost(Integer postId) {
+    return postDao
+        .findWithUserById(postId)
+        .orElseThrow(() -> new ResourceNotFoundException("Post", postId));
+  }
+
+  private User requireUser(Integer userId) {
+    return userDao
+        .findById(userId)
+        .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+  }
+
+  private void requireUserExists(Integer userId) {
+    if (!userDao.existsById(userId)) {
+      throw new ResourceNotFoundException("User", userId);
     }
-    return cachedEntity;
-  }
-
-  public Optional<List<Post>> getAllPosts() {
-    return Optional.of(postDao.findAll());
-  }
-
-  public Optional<List<Post>> getPostsByUser(Integer userId) {
-    return Optional.of(postDao.getPostsByUserId(userId));
-  }
-
-  public Optional<Post> createPost(Post post, Integer userId) {
-    Optional<User> user = userDao.findById(userId);
-    if (user.isEmpty()) {
-      return Optional.empty();
-    } else if (post.getId() != null) {
-      return Optional.empty();
-    } else {
-      Post newPost = new Post();
-      newPost.setTitle(post.getTitle());
-      newPost.setContent(post.getContent());
-      newPost.setDescription(post.getDescription());
-      newPost.setUser(user.get());
-      Post updatedEntity = postDao.save(newPost);
-      String commentKey = String.format("POST%s", updatedEntity.getId());
-      Optional<Post> cachedEntity = redisCacheService.updateValue(commentKey, updatedEntity);
-      if (cachedEntity.isEmpty()) {
-        log.error("Failed to add Post {} in cache", updatedEntity.getId());
-      } else {
-        log.info("Post {} add in cache", updatedEntity.getId());
-      }
-      return Optional.of(updatedEntity);
-    }
-  }
-
-  public Optional<Post> updatePost(Post post, Integer postId) {
-    Optional<Post> oldPost = postDao.findById(postId);
-    if (oldPost.isEmpty()) {
-      return Optional.empty();
-    } else {
-      Post updatedPost = oldPost.get();
-      updatedPost.setContent(post.getContent());
-      updatedPost.setTitle(post.getTitle());
-      updatedPost.setDescription(post.getDescription());
-      Post updatedEntity = postDao.save(updatedPost);
-      String commentKey = String.format("POST%s", updatedEntity.getId());
-      Optional<Post> cachedEntity = redisCacheService.updateValue(commentKey, updatedEntity);
-      if (cachedEntity.isEmpty()) {
-        log.error("Failed to update Post {} in cache", updatedEntity.getId());
-      } else {
-        log.info("Post {} updated in cache", updatedEntity.getId());
-      }
-      return Optional.of(updatedEntity);
-    }
-  }
-
-  public Optional<Post> deletePost(Integer postId) {
-    Optional<Post> oldPost = postDao.findById(postId);
-    if (oldPost.isEmpty()) {
-      return Optional.empty();
-    }
-    Post deletedComment = oldPost.get();
-    postDao.delete(oldPost.get());
-    String commentKey = String.format("COMMENT%s", deletedComment.getId());
-    log.info("Comment {} deletion from cache started", deletedComment.getId());
-    redisCacheService.deleteValue(commentKey);
-    log.info("Comment {} deleted from cache ", deletedComment.getId());
-    return Optional.of(deletedComment);
   }
 }

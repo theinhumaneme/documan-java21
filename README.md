@@ -1,10 +1,10 @@
 # Documan
 
-Documan is a Java 21 / Spring Boot REST API for organizing academic subjects and files and for supporting a small community around posts, comments, votes, favourites, users, and roles.
+Documan is a Java 25 / Spring Boot 4 REST API for organizing academic subjects and files and for supporting a small community around posts, comments, votes, favourites, users, and roles.
 
-The current repository is a single backend service. It stores application data in PostgreSQL, uses Redis as an explicit read-through cache for selected entities, and stores uploaded file objects in Cloudflare R2 through the AWS S3 SDK.
+The current repository is a single backend service. It stores application data in PostgreSQL, caches response payloads in Redis through Spring's cache abstraction, and stores uploaded file objects in Cloudflare R2 through the AWS S3 SDK.
 
-> This README documents the code as it exists today. The security and production-readiness limitations near the end are part of the current implementation and should be reviewed before deploying the service outside a trusted development environment.
+> Identity is Clerk; this service validates bearer tokens against Clerk's published signing keys and enforces role-based authorization on every write. See [Security model](#security-model) for what is enforced and what is still open.
 
 ## Contents
 
@@ -13,20 +13,22 @@ The current repository is a single backend service. It stores application data i
 - [Architecture](#architecture)
 - [Repository layout](#repository-layout)
 - [Domain model](#domain-model)
-- [Request and persistence flow](#request-and-persistence-flow)
 - [Local setup](#local-setup)
 - [Configuration](#configuration)
 - [Database initialization](#database-initialization)
 - [API reference](#api-reference)
-- [Request payloads](#request-payloads)
+- [Pagination](#pagination)
+- [Error responses](#error-responses)
+- [Search](#search)
 - [Caching](#caching)
 - [File storage](#file-storage)
+- [Performance design notes](#performance-design-notes)
 - [Security model](#security-model)
 - [Observability and logging](#observability-and-logging)
 - [Build and development tooling](#build-and-development-tooling)
 - [Containerization and CI](#containerization-and-ci)
+- [Testing](#testing)
 - [Current limitations and known issues](#current-limitations-and-known-issues)
-- [Testing status](#testing-status)
 - [License](#license)
 
 ## Feature inventory
@@ -34,107 +36,163 @@ The current repository is a single backend service. It stores application data i
 ### Users
 
 - Create a user associated with a department, academic year, semester, and the default regular role.
-- Fetch a user by numeric ID.
-- Fetch a user by username.
-- Update a user's profile and academic associations.
-- Delete a user.
-- Persist username, email, name, password, role, department, year, semester, account flags, and timestamps.
-- Model a user's posts, comments, favourite files, favourite posts, and post/comment votes.
+- Fetch a user by numeric ID or by username; list users with pagination.
+- Update a user's profile and academic associations. Your own, or anyone's with an administrator's token.
+- Set the terms-of-service, posting and commenting flags through the update payload.
+- Delete a user. Deleting a user who still owns posts or comments fails with `409` rather than destroying their content.
+- Paginated views of a user's posts, comments, subjects, favourite posts, favourite files, and upvoted/downvoted posts and comments.
 
 ### Academic catalog
 
-- Read departments.
-- Read academic years.
-- Read semesters.
-- Read roles.
-- Create, read, update, delete, and list subjects.
+- Read departments, academic years, semesters, and roles.
+- Create, read, update, delete, and list subjects with pagination.
 - Filter subjects by department, year, and semester.
-- Associate each subject with one department, year, and semester.
 - Mark subjects as lab and/or theory subjects.
 
 ### Posts and comments
 
-- Create, read, update, delete, and list posts.
-- List posts created by a user.
-- Create, read, update, delete, and list comments.
-- List comments by user or post.
-- Upvote or downvote posts and comments.
-- Remove post and comment votes.
-- Automatically remove the opposite vote when switching between upvote and downvote.
-- Favourite and unfavourite posts.
+- Create, read, update, delete, and list posts and comments, all paginated.
+- List posts by author; list comments by author or by post.
+- Upvote or downvote posts and comments; switching direction moves the existing vote rather than adding a second one.
+- Casting the same vote twice, or withdrawing a vote that was never cast, is a no-op rather than an error.
+- Favourite and unfavourite posts and files.
+- Vote and favourite tallies are denormalised counters maintained by atomic SQL updates.
+- Deleting a post removes its comments, votes and favourites.
 
 ### Files
 
-- Upload multipart files to a Cloudflare R2 bucket.
-- Generate object keys from a random UUID plus a normalized original filename.
-- Store file metadata in PostgreSQL.
-- Return a public object URL assembled from the configured R2 public URL.
-- List files associated with a subject.
-- Delete an object from R2 by object key.
-- Include a lower-level service method for uploading profile pictures to a separate user-data bucket; no controller currently exposes it.
+- Upload multipart files to a Cloudflare R2 bucket, streamed directly from the request.
+- Object keys are a random UUID prefix plus a sanitised, length-capped form of the original filename.
+- Store file metadata in PostgreSQL; a failed metadata write removes the already-uploaded object.
+- List files for a subject with pagination.
+- Delete removes both the R2 object and its database row.
+
+### Search
+
+- Full-text search over files. Subjects, posts and comments were indexed too and never queried; they were removed before release.
+- Faceted filtering by department, year, semester, subject, file extension and lab/theory.
+- The index is updated from the same transaction as the change, so it never shows something that
+  was rolled back and never misses something that committed.
+- Search being unavailable never fails a write.
 
 ### Infrastructure and operations
 
-- PostgreSQL persistence through Spring Data JPA and Hibernate.
-- Redis-backed cache for users, subjects, posts, and comments.
-- PostgreSQL and Redis development containers.
-- Swagger UI and OpenAPI generation through springdoc.
+- PostgreSQL persistence through Spring Data JPA and Hibernate 7.
+- Redis-backed response caching with per-cache TTLs via Spring's cache abstraction.
+- Virtual-thread request handling.
+- Meilisearch-backed full-text search kept in step with the database by a transactional outbox.
+- HTTP/2, response compression, and `ETag`/`If-None-Match` on API reads.
+- OpenAPI 3.1 specification (`openapi.json`), generated from the controller signatures and verified in CI.
 - Spring Boot Actuator and Prometheus registry dependencies.
-- OpenTelemetry Java agent in the production container image.
-- Nix flake development shell with Java 21, Maven, Gradle, k6, and supporting tools.
+- OpenTelemetry Java agent in the container image, pinned and checksum-verified.
+- Nix flake development shell with Java 25, Maven, Gradle, and supporting tools.
 - Spotless formatting with Google Java Format.
-- A pre-commit hook that runs formatting.
-- Bruno request collection containing examples for the exposed application endpoints.
-- GitLab CI jobs for manually building and pushing development, test, and production images.
 
 ## Technology stack
 
 | Area | Current implementation |
 | --- | --- |
-| Language | Java 21 |
-| Framework | Spring Boot 3.3.4 |
-| Web | Spring MVC / `spring-boot-starter-web` |
-| Persistence | Spring Data JPA, Hibernate |
+| Language | Java 25 |
+| Framework | Spring Boot 4.1.0 (Spring Framework 7) |
+| Web | Spring MVC / `spring-boot-starter-web`, virtual threads enabled |
+| Persistence | Spring Data JPA, Hibernate 7.4 |
 | Database | PostgreSQL 17 in the provided development Compose file |
-| Cache | Spring Data Redis, Redis 7.4 in the provided development Compose file |
-| Object storage | Cloudflare R2 via AWS SDK for Java S3 2.29.6 |
-| API documentation | springdoc OpenAPI 2.6.0 |
-| Security dependency | Spring Security through Spring Cloud Azure Active Directory 5.16.0 |
-| Serialization | Jackson with Java Time support |
+| Cache | Spring Cache over Spring Data Redis, Redis 7.4 in the development Compose file |
+| Search engine | Meilisearch v1.52 in the development Compose file |
+| Object storage | Cloudflare R2 via AWS SDK for Java S3 2.51.0 |
+| API documentation | `openapi.json` (OpenAPI 3.1), generated from the controllers |
+| Security | `spring-boot-starter-security` + `spring-boot-starter-oauth2-resource-server`; Clerk-issued JWTs, `@PreAuthorize` role and scope checks |
+| Serialization | Jackson 3 |
+| DTO mapping | MapStruct 1.6.3 |
+| Validation | Jakarta Bean Validation via `spring-boot-starter-validation` |
+| Search | Meilisearch via meilisearch-java 0.21.0 |
 | Boilerplate reduction | Lombok |
 | Metrics | Spring Boot Actuator and Micrometer Prometheus registry |
 | Tracing in container | OpenTelemetry Java agent 2.9.0 |
 | Build | Maven |
-| Formatting | Spotless Maven plugin and Google Java Format |
-| Local environment | Nix flake / direnv, or a manually installed JDK and Maven |
-| API client examples | Bruno |
-| Load-test tooling | k6; one basic user endpoint script is included |
-| CI | GitLab CI |
+| Formatting | Spotless 3.9.0 with Google Java Format 1.36.1 |
+| Testing | JUnit 5, AssertJ, Mockito, Testcontainers 2 |
+| Local environment | Nix flake / direnv, or a manually installed JDK 25 and Maven |
 
 ## Architecture
 
-Documan uses a conventional layered monolith:
+Documan is a layered Spring monolith. It is **not** a Clean or hexagonal architecture, and this
+section says so plainly rather than borrowing the vocabulary.
+
+Judged against the Dependency Rule — source dependencies pointing inward, business rules ignorant of
+frameworks and databases — it satisfies two of the seven usual checks:
+
+| Question | Answer |
+| --- | --- |
+| Can business rules be tested without a database or framework? | No. Service tests need Testcontainers and a real PostgreSQL. |
+| Do all source dependencies point inward? | No. Services import Spring Data repositories; entities carry `@Entity`. |
+| Can the database be swapped without touching business logic? | No. The entities *are* the schema, and the search outbox uses PostgreSQL-only `ON CONFLICT` and `LEAST`. |
+| Are the use cases independent of the delivery mechanism? | **Yes.** Services take request records and return response records; nothing below the controllers knows about HTTP. |
+| Is the framework confined to the outermost layer? | No. `@Transactional`, `@Cacheable` and `@Entity` are throughout. |
+| Is the component graph free of cycles? | **Yes.** Controllers depend on services, services on repositories, and nothing points back. |
+| Does a composition root wire the dependencies? | No. Spring's component scan does. |
+
+That is a deliberate trade, not an oversight. Persistence, caching and search are the substance of
+this application rather than swappable details — there is no second database in its future, and the
+boundary that would let one exist would cost an interface and an adapter per repository to protect
+against a change nobody expects. What the two passing rows buy is the thing worth having: the
+services can be read and tested without a web server, and a dependency cycle cannot creep in.
+
+The costs are real and land in two places. Business rules cannot be tested without Docker, which is
+why the suite is slower than it looks and why a Docker outage reads as a wall of test failures. And
+`ddl-auto: update` means the JPA entities are the schema, so a rename is a hand-written migration.
+
+### Where complexity is hidden, and where it is not
+
+Two modules carry the weight and earn it. Both present a small interface over an implementation you
+would not want to write twice:
+
+- **`CurrentUser`** — three methods (`find`, `require`, `requireId`) over token-to-row resolution,
+  first-request provisioning, a genuine insert race between the several requests a signed-in page
+  load fires at once, and rebinding an account whose Clerk subject changed.
+- **`Permissions`** — `mayEditFolder(folderId)` hides a rank comparison, a maintainer-scope lookup,
+  a walk from folder to subject to department, and the read transaction all of that needs.
+
+One module does not. **`FileRecorder`** is two methods that mostly forward to repositories — close to
+the pass-through that a design review should reject. It exists because `@Transactional` is applied by
+a proxy, so a self-call inside `FileService` would be silently ignored, and the R2 upload has to sit
+*outside* the transaction rather than holding a pooled connection for the length of a network
+transfer. The functionality it provides is a transaction boundary: invisible, but the reason the
+connection pool survives someone uploading a folder.
+
+One piece of knowledge is genuinely duplicated, and it is worth knowing about before you change
+either copy. The role ordering lives in `RoleName` here and in `ROLE_RANK` in the client's `api.ts`.
+Neither can read the other, so the two lists have to be edited together — a gate the interface offers
+and the service refuses is worse than either alone.
+
+### Layer diagram
 
 ```mermaid
 flowchart LR
-    Client[HTTP client / Bruno / Swagger UI]
-    Filter[RequestFilter]
+    Client[HTTP client]
+    Etag[ShallowEtagHeaderFilter]
     Security[Spring Security filter chain]
     Controllers[REST controllers]
     Services[Application services]
+    Mappers[MapStruct mappers]
     Repositories[Spring Data JPA repositories]
     Cache[Redis]
     Database[(PostgreSQL)]
     R2[(Cloudflare R2)]
 
-    Client --> Filter
-    Filter --> Security
+    Client --> Etag
+    Etag --> Security
     Security --> Controllers
     Controllers --> Services
+    Services --> Mappers
     Services --> Repositories
     Repositories --> Database
     Services <--> Cache
     Services --> R2
+    Services --> Outbox[(search_outbox)]
+    Drainer[SearchOutboxDrainer] --> Outbox
+    Drainer --> Meili[(Meilisearch)]
+    Controllers --> Meili
 ```
 
 ### Layers
@@ -142,53 +200,59 @@ flowchart LR
 | Layer | Package | Responsibility |
 | --- | --- | --- |
 | Application entry point | `com.documan` | Sets the JVM default timezone to UTC and starts Spring Boot. |
-| HTTP controllers | `com.documan.controllers` | Maps `/api/v1/**` requests, translates service `Optional` results to HTTP responses, and catches broad exceptions. |
-| Services | `com.documan.service` | Implements entity creation/update logic, association checks, caching, voting, favourites, and R2 operations. |
-| Repositories | `com.documan.dao` | Extends `JpaRepository` and defines a few native lookup queries. |
-| Entities | `com.documan.entity` | Defines the JPA model, relationships, indexes, timestamps, and JSON visibility rules. |
-| Configuration | `com.documan.config` | Creates the Redis template and Cloudflare R2-compatible S3 client. |
-| Security/filtering | `com.documan.security` | Configures the stateless permit-all security chain and logs incoming requests. |
+| HTTP controllers | `com.documan.controllers` | Maps `/api/v1/**`, binds and validates request records, and returns response records. No exception handling. |
+| DTOs | `com.documan.dto` | Request and response records; the API contract is decoupled from the persistence model. |
+| Mappers | `com.documan.mapper` | MapStruct entity-to-response conversions, generated at compile time. |
+| Services | `com.documan.service` | Transaction boundaries, business rules, caching, voting, favourites, and file orchestration. |
+| Repositories | `com.documan.dao` | Spring Data repositories with entity graphs, pagination and atomic counter updates. |
+| Entities | `com.documan.entity` | JPA model, relationships, indexes, optimistic locking and denormalised tallies. |
+| Configuration | `com.documan.config` | Cache manager, web filters and the R2-compatible S3 client. |
+| Security | `com.documan.security` | The resource-server filter chain, token-to-row resolution (`CurrentUser`) and every authorisation rule (`Permissions`). |
+| Search | `com.documan.search` | Meilisearch gateway, documents, the dirty-set outbox and the query side. |
+| Exceptions | `com.documan.exception` | Domain exceptions and the RFC 9457 `@RestControllerAdvice`. |
 
 ### Codebase size
 
-The current source tree contains:
-
-- 44 Java source files.
-- 9 JPA entities.
-- 9 Spring Data repositories.
-- 12 service classes.
-- 9 REST controllers.
-- 44 controller endpoint mappings.
-- 48 Bruno request files.
-- No automated test source files.
-
+- 129 Java main source files, 14 test source files.
+- 15 JPA entities, plus a sealed `Votable` interface and the `VoteType` and `DefaultFolder` enums.
+- 15 Spring Data repositories.
+- 14 service classes.
+- 12 REST controllers. The endpoint total is not written down here because it was wrong twice; [`API.md`](API.md) is generated from the controllers and counts them for you.
+- 8 MapStruct mappers, one per aggregate, and a DTO record for every request and response shape.
+- Most tests need a container runtime. The ones that do not are the pure unit tests and the MockMvc
+  slices — anything extending `AbstractDataTest` starts PostgreSQL. The count is deliberately not
+  written down here; `mvn test` counts them, and every number in this list that was maintained by
+  hand has been wrong at least once.
 ## Repository layout
 
 ```text
 .
-├── APIs/                         Bruno API collection and development environment
-├── SQL/                          Seed data, pgcrypto setup, and database loader
-├── k6-scripts/                   Basic k6 request script
+├── SQL/                          Reference/seed data and one-off migration scripts
 ├── src/main/java/com/documan/
-│   ├── config/                   Redis and Cloudflare R2 client configuration
+│   ├── config/                   Cache manager, web filters, R2 client
 │   ├── controllers/              REST API controllers
 │   ├── dao/                      Spring Data JPA repositories
-│   ├── entity/                   JPA entities and relationships
-│   ├── security/                 Security chain and request logging filter
-│   ├── service/                  Business, cache, vote, favourite, and R2 services
+│   ├── dto/request/              Validated request records
+│   ├── dto/response/             Response records and the pagination envelope
+│   ├── entity/                   JPA entities, join entities, sealed Votable, VoteType
+│   ├── exception/                Domain exceptions and the ProblemDetail advice
+│   ├── mapper/                   MapStruct entity to response mappers
+│   ├── search/                   Meilisearch gateway, documents, outbox, query side
+│   ├── security/                 Resource-server chain, CurrentUser, Permissions
+│   ├── service/                  Business, cache, vote, favourite, file, and R2 services
 │   └── DocumanApplication.java   Application entry point
 ├── src/main/resources/
-│   ├── application.yml           Base application configuration
+│   ├── application.yml           Shared configuration, applied on every profile
 │   ├── application-documan.yml   Checked-in development configuration template
 │   └── logback.xml               Console and profile-specific file logging
-├── Dockerfile                    Multi-stage application image
-├── redis-database.yml            PostgreSQL and Redis development services
-├── schema.sql                    Generated PostgreSQL schema snapshot
-├── extract-schema-sql.sh         Regenerates schema.sql from the running container
+├── src/test/java/com/documan/    Service tests on Testcontainers PostgreSQL, MockMvc tests
+├── Dockerfile                    Multi-stage, layered, non-root application image
+├── openapi.json                  OpenAPI 3.1 specification, generated from the controllers
+├── schema.sql                    Schema generated from the JPA mapping
+├── extract-schema-sql.sh         Regenerates schema.sql
 ├── pom.xml                       Maven build and dependency configuration
 ├── flake.nix                     Reproducible development shell
 ├── Makefile                      Formatting and pre-commit setup commands
-└── .gitlab-ci.yml                Manual image build/push jobs
 ```
 
 ## Domain model
@@ -197,927 +261,692 @@ The current source tree contains:
 erDiagram
     ROLE ||--o{ USER : assigned_to
     DEPARTMENT ||--o{ USER : contains
+    DEPARTMENT ||--o{ SUBJECT : offers
     YEAR ||--o{ USER : classifies
+    YEAR ||--o{ SUBJECT : classifies
     SEMESTER ||--o{ USER : classifies
-
+    SEMESTER ||--o{ SUBJECT : classifies
     USER ||--o{ POST : authors
     USER ||--o{ COMMENT : authors
-    POST ||--o{ COMMENT : contains
+    POST ||--o{ COMMENT : has
+    SUBJECT ||--o{ FOLDER : divides
+    FOLDER ||--o{ FILE : holds
+    SUBJECT ||--o{ FILE : denormalises
+    USER ||--o{ MAINTAINER_SCOPE : granted
+    DEPARTMENT ||--o{ MAINTAINER_SCOPE : scopes
 
-    DEPARTMENT ||--o{ SUBJECT : owns
-    YEAR ||--o{ SUBJECT : classifies
-    SEMESTER ||--o{ SUBJECT : classifies
-    SUBJECT ||--o{ FILE : contains
-
-    USER }o--o{ POST : favourite_posts
-    USER }o--o{ FILE : favourite_files
-    USER }o--o{ POST : upvoted_posts
-    USER }o--o{ POST : downvoted_posts
-    USER }o--o{ COMMENT : upvoted_comments
-    USER }o--o{ COMMENT : downvoted_comments
+    USER ||--o{ POST_VOTE : casts
+    POST ||--o{ POST_VOTE : receives
+    USER ||--o{ COMMENT_VOTE : casts
+    COMMENT ||--o{ COMMENT_VOTE : receives
+    USER ||--o{ FAVOURITE_POST : marks
+    POST ||--o{ FAVOURITE_POST : marked_by
+    USER ||--o{ FAVOURITE_FILE : marks
+    FILE ||--o{ FAVOURITE_FILE : marked_by
 ```
 
-### Entity details
+### Entities
 
-#### `User`
+| Entity | Table | Notes |
+| --- | --- | --- |
+| `Role` | `role` | Four rows: `regular`, `maintainer`, `moderator`, `admin`. **Rank is by name, not by id** — see `RoleName`. Rank was the id until `maintainer` was added fourth and would have outranked `admin`; the id is a surrogate key that no behaviour reads. |
+| `Department`, `Year`, `Semester` | `department`, `year`, `semester` | Reference tables. |
+| `User` | `documan_user` | Profile, academic associations, account flags, `@Version`. |
+| `Subject` | `subject` | Lab/theory flags, composite index on department/year/semester. |
+| `Post` | `post` | Content plus `upvote_count`, `downvote_count`, `favourite_count`, `@Version`. |
+| `Comment` | `comment` | Content plus `upvote_count`, `downvote_count`, `@Version`. |
+| `File` | `file` | Object key and URL, size, `favourite_count`, `@Version`. Belongs to a folder *and* denormalises its subject. |
+| `Folder` | `folder` | A named division of a subject — the unit or lab a file is filed under. Created from `DefaultFolder` slugs (`unit-1`…`unit-5`, `lab`, `coursefiles`) or by hand. Every file lives in one, which is why upload takes a `folderId` rather than a `subjectId`. |
+| `MaintainerScope` | `maintainer_scope` | One grant of part of the library to a maintainer: a department, optionally a year within it, optionally a semester within that. A null column means "all of them". Grants add up rather than intersect. |
+| `PostVote`, `CommentVote` | `post_vote`, `comment_vote` | One row per (target, user); direction in a `vote_type` column. |
+| `PostFavourite`, `FileFavourite` | `favourite_post`, `favourite_file` | One row per (target, user). |
 
-Database table: `documan_user`
+`Post` and `Comment` implement the sealed `Votable` interface, so code that reads tallies dispatches
+with an exhaustive pattern-matching switch instead of unchecked casts.
 
-Important fields:
+### Referential policy
 
-- `id`: integer identity primary key.
-- `username`: required and unique.
-- `password`: required and write-only in JSON responses.
-- `firstName`, `lastName`, `email`: profile fields; email is required and unique.
-- `acceptedTermsOfService`: required boolean with a default of `false`.
-- `isVerified`: required boolean with a default of `false`.
-- `canPost`, `canComment`: required booleans with defaults of `false`.
-- `dateCreated`: Hibernate creation timestamp.
-- `dateLastInteracted`: Hibernate update timestamp.
-- Eager many-to-one associations to `Role`, `Department`, `Year`, and `Semester`.
-- Lazy associations to authored posts/comments, favourites, and votes.
-
-New users are always assigned role ID `1`, which the seed data defines as `regular`.
-
-#### `Role`
-
-- Unique role name.
-- One-to-many relationship with users.
-- Seeded roles are `regular`, `moderator`, and `admin`.
-- Promotion and demotion are determined by comparing numeric role IDs, not by role names or an explicit rank field.
-
-#### `Department`
-
-- Unique department name.
-- One-to-many relationships with users and subjects.
-- Seed data includes six engineering departments.
-
-#### `Year`
-
-- Unique string value stored in the database column `year`.
-- One-to-many relationships with users and subjects.
-- Seed data includes years `I` through `IV`.
-
-#### `Semester`
-
-- Unique semester name.
-- One-to-many relationships with users and subjects.
-- Seed data includes semesters `I` and `II`.
-
-#### `Subject`
-
-- Long identity primary key.
-- Name and code.
-- `isLab` and `isTheory` flags.
-- Required many-to-one relationships to department, year, and semester.
-- One-to-many relationship with files.
-
-#### `File`
-
-- Integer identity primary key.
-- Original display name.
-- R2 object key in `objectName`.
-- Public URL in `objectURL`.
-- File size in bytes.
-- Creation and update timestamps.
-- Required many-to-one relationship to a subject.
-- Many-to-many relationship with users through `favourite_files`.
-
-The file-favourite relationship is modeled but is not currently exposed by a controller or service operation.
-
-#### `Post`
-
-- Integer identity primary key.
-- Required title, description, and content text.
-- Creation and update timestamps.
-- Required author relationship to a user.
-- One-to-many relationship with comments.
-- Many-to-many user relationships for favourites, upvotes, and downvotes.
-
-#### `Comment`
-
-- Integer identity primary key.
-- Required text content.
-- Creation and update timestamps.
-- Required relationships to a post and user.
-- Many-to-many user relationships for upvotes and downvotes.
-
-### Join tables
-
-The JPA model uses these many-to-many join tables:
-
-| Join table | Meaning |
-| --- | --- |
-| `favourite_files` | Files favourited by users |
-| `favourite_posts` | Posts favourited by users |
-| `upvoted_posts` | Post upvotes |
-| `downvoted_posts` | Post downvotes |
-| `upvoted_comments` | Comment upvotes |
-| `downvoted_comments` | Comment downvotes |
-
-## Request and persistence flow
-
-For a typical entity lookup:
-
-1. `RequestFilter` logs the HTTP method, URL, headers, and query parameters.
-2. The Spring Security chain permits the request and uses no HTTP session.
-3. A controller reads query parameters and/or a request body.
-4. The controller calls a service.
-5. For cached entity-by-ID operations, the service checks Redis first.
-6. On a cache miss, the service reads through a JPA repository from PostgreSQL and writes the entity to Redis.
-7. The controller converts a present `Optional` to HTTP `200`.
-8. A missing result is normally translated to `400` or `404`, depending on the endpoint.
-9. An exception caught by the controller is translated to `500` with a generic text response.
-
-Create and update operations generally verify referenced entities, copy selected request fields into a managed entity, save through JPA, and then set or replace the relevant Redis entry.
+- Votes and favourites cascade with their target at the database level (`ON DELETE CASCADE`), because
+  they are derived data.
+- Comments cascade with their post.
+- Authored content does **not** cascade with its author. Deleting a user who still has posts or
+  comments fails and is surfaced as `409 Conflict`.
 
 ## Local setup
 
 ### Prerequisites
 
-Choose one development environment:
+- JDK 25 and Maven, or the provided Nix flake shell (`nix develop`, or `direnv allow`).
+- Docker or Podman for PostgreSQL, Redis and Meilisearch.
 
-- JDK 21 and Maven installed locally, or
-- Nix with flakes enabled.
-
-Also install:
-
-- Docker with Compose support.
-- PostgreSQL client tools if you intend to run `SQL/load-data.sh`.
-- A Cloudflare R2 account, bucket, public bucket URL, endpoint, access key ID, and secret access key. The R2 client bean is constructed during application startup.
-
-### Option 1: Nix development shell
-
-The repository includes `.envrc` with `use flake`.
+### Two commands
 
 ```bash
-direnv allow
+make up     # PostgreSQL, Redis and Meilisearch via ../docker-compose.datastores.yml
+make dev    # mvn spring-boot:run -Pdev
 ```
 
-Alternatively:
+That is a complete working application on `http://localhost:8080`. `make up` prints each
+container's health; wait for all three to report `healthy` before starting the app.
 
-```bash
-nix develop
-```
-
-The shell provides Java 21, Maven, Gradle, k6, Lombok support, and native build utilities.
-
-### Option 2: Local JDK and Maven
-
-Confirm the expected versions:
-
-```bash
-java -version
-mvn -version
-```
-
-Java 21 is required by the Maven build.
-
-### Start PostgreSQL and Redis
-
-```bash
-docker compose -f redis-database.yml up -d
-```
-
-The development services expose:
-
-| Service | Host port | Username | Development password |
-| --- | ---: | --- | --- |
-| PostgreSQL | `5432` | `root` | `password` |
-| Redis | `6379` | n/a | `password` |
-
-These are development-only defaults and must not be reused for a shared or production environment.
-
-### Create the local secrets profile
-
-The Maven default profile filters `application.yml` so that Spring activates `documan-secrets`. That profile file is intentionally ignored by Git.
-
-Create it from the checked-in template:
-
-```bash
-cp src/main/resources/application-documan.yml \
-  src/main/resources/application-documan-secrets.yml
-```
-
-Edit `application-documan-secrets.yml` and replace every Cloudflare R2 placeholder with real values. Keep credentials only in the ignored secrets file or inject them through a secret manager/environment variables.
-
-At minimum, configure:
-
-```yaml
-cloudflare:
-  r2:
-    endpoint: https://<account-id>.r2.cloudflarestorage.com
-    access-key-id: <access-key-id>
-    secret-access-key: <secret-access-key>
-    files-bucket: <files-bucket>
-    files-bucket-public-access-url: https://<public-files-host>
-    user-bucket: <user-data-bucket>
-```
-
-The copied template already points PostgreSQL and Redis at the provided local containers.
-
-### Run the application
-
-```bash
-mvn spring-boot:run
-```
-
-The default server port is `8080`.
-
-Useful local URLs:
-
-| Resource | URL |
-| --- | --- |
-| API base | `http://localhost:8080/api/v1` |
-| Swagger UI | `http://localhost:8080/swagger-ui/index.html` |
-| OpenAPI JSON | `http://localhost:8080/v3/api-docs` |
-| Actuator health | `http://localhost:8080/actuator/health` |
-
-The Prometheus registry dependency is present, but the repository does not explicitly expose the Prometheus actuator endpoint. Add the appropriate `management.endpoints.web.exposure.include` configuration before relying on `/actuator/prometheus`.
-
-## Configuration
+`make down` stops the stack, `make logs` tails it, and `make reset` removes it along with its data
+volumes so the next `up` starts from an empty database.
 
 ### Profiles
 
-| Profile/file | Purpose |
-| --- | --- |
-| `application.yml` | Sets the application name, port, and active profile token populated by Maven resource filtering. |
-| `application-documan.yml` | Checked-in local configuration template with placeholder R2 values and development database/cache values. |
-| `application-documan-secrets.yml` | Expected default local profile containing real local credentials; ignored by Git. |
+The active Spring profile is written in at build time from the Maven profile, so the two cannot
+drift apart:
 
-The Maven `default` profile is active by default and sets:
+| Maven profile | Spring profile | Configuration | Use |
+| --- | --- | --- | --- |
+| `default` | `documan-secrets` | `application-documan-secrets.yml` (gitignored) | Real credentials |
+| `dev` | `dev` | `application-dev.yml` (**gitignored**; copy `application-dev.yml.example`) | The Compose stack above |
+| `test` | `test` | supplied by the environment | CI / staging |
+| `production` | `production` | supplied by the environment | Deployment |
 
-```xml
-<spring.profiles.active>documan-secrets</spring.profiles.active>
-```
-
-You can override Spring's active profile at runtime:
+`application-dev.yml` holds no secrets — it points at the Compose services and every value falls
+back to an environment variable, so the same profile works against a stack that is not on
+localhost:
 
 ```bash
-mvn spring-boot:run -Dspring-boot.run.profiles=documan
+DB_HOST=db.internal MEILI_HOST=http://search.internal:7700 mvn spring-boot:run -Pdev
 ```
 
-The checked-in `documan` profile still contains non-functional R2 placeholders, so it is primarily a template unless values are overridden externally.
+The R2 settings in that profile are deliberate placeholders rather than credentials. The
+application needs those properties to start, and without defaults nobody could run it without an R2
+account — which would block anyone working on search, posts or comments. File upload and delete
+fail until real values are supplied; everything else works. Export `R2_ACCESS_KEY_ID`,
+`R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT`, `R2_FILES_BUCKET` and `R2_FILES_PUBLIC_URL` to exercise them.
 
-### Application properties used by the code
+`application-documan.yml` is the checked-in template for the gitignored secrets file, not a profile
+you run:
 
-| Property | Consumer | Purpose |
+```bash
+cp src/main/resources/application-documan.yml \
+   src/main/resources/application-documan-secrets.yml
+```
+
+## Configuration
+
+Shared configuration lives in `application.yml` and applies on every profile. Datastore
+credentials and R2 settings live in the profile-specific file.
+
+### Performance-relevant settings
+
+| Property | Value | Why |
 | --- | --- | --- |
-| `cloudflare.r2.endpoint` | `CloudflareR2Config` | R2 S3-compatible endpoint URI |
-| `cloudflare.r2.access-key-id` | `CloudflareR2Config` | Static S3 access key |
-| `cloudflare.r2.secret-access-key` | `CloudflareR2Config` | Static S3 secret |
-| `cloudflare.r2.files-bucket` | `CloudflareR2Service` | Bucket used for subject files |
-| `cloudflare.r2.files-bucket-public-access-url` | `CloudflareR2Service` | Base URL used to build public file URLs |
-| `cloudflare.r2.user-bucket` | `CloudflareR2Service` | Bucket used by the unexposed profile-picture upload method |
-| `spring.datasource.*` | Spring Boot / HikariCP | PostgreSQL connection and pool |
-| `spring.data.redis.*` | Spring Boot | Redis connection |
-| `spring.servlet.multipart.max-file-size` | Spring MVC | Per-file upload limit; currently `25MB` |
-| `server.tomcat.*` | Embedded Tomcat | Queue and thread settings |
-| `server.compression.*` | Embedded server | JSON response compression |
-| `spring.jpa.hibernate.ddl-auto` | Hibernate | Currently `update` |
-| `spring.jpa.show-sql` | Hibernate | SQL logging; currently enabled in the template |
-
-### Current server and pool tuning
-
-The checked-in development template configures:
-
-- Tomcat accept queue: `200`.
-- Tomcat maximum threads: `400`.
-- Tomcat minimum spare threads: `20`.
-- Hikari maximum pool size: `50`.
-- Hikari minimum idle connections: `10`.
-- Hikari connection timeout: `30s`.
-- Hikari idle timeout: `30s`.
-- Hikari maximum connection lifetime: `30m`.
-- Hikari leak detection threshold: `2s`.
-- Hikari auto-commit: disabled.
-- Response compression for JSON responses of at least `1024` bytes.
-
-These values are not environment-specific in the repository and should be load-tested before production use.
+| `spring.threads.virtual.enabled` | `true` | The workload is I/O bound; a blocked request no longer pins an OS thread. |
+| `server.tomcat.threads.max` | `50` | Request handling runs on virtual threads, so the platform pool only backs Tomcat's own work. |
+| `spring.jpa.open-in-view` | `false` | Prevents lazy associations initialising during response rendering. |
+| `spring.jpa.properties.hibernate.jdbc.batch_size` | `50` | Batches inserts and updates. |
+| `spring.jpa.properties.hibernate.query.fail_on_pagination_over_collection_fetch` | `true` | Turns silent in-memory pagination into an error. |
+| `spring.data.redis.lettuce.pool.*` | enabled | Without a pool, Lettuce serialises all command dispatch over one connection. |
+| `spring.datasource.hikari.maximum-pool-size` | `50` | The real concurrency limit for database work. Keep in step with the server's `max_connections`. |
+| `spring.datasource.hikari.leak-detection-threshold` | `30000` | 2s flagged any slow query as a leak and produced a stack trace per occurrence. |
+| `server.http2.enabled` | `true` | Multiplexing for clients that negotiate it. |
+| `server.compression` | `application/json`, `application/problem+json` | Responses over 1&nbsp;KB. |
+| `spring.servlet.multipart.max-request-size` | `30MB` | Previously unset, leaving total request size unbounded. |
+| `documan.search.outbox.counter-debounce` | `60s` | Collapses vote storms into one index push per entity. |
+| `documan.search.reconcile.cron` | every 6h | Full convergence sweep; enqueues only, so it costs four inserts. |
 
 ## Database initialization
 
-Hibernate is configured with `ddl-auto: update`, so application startup creates or updates tables from the entity mappings.
+The application owns the schema through `spring.jpa.hibernate.ddl-auto: update`. Start the
+application once against an empty database and the tables are created.
 
-After the schema exists, load the included reference and sample data:
+### Reference and sample data
 
 ```bash
-cd SQL
-./load-data.sh
+cd SQL && ./load-data.sh
 ```
 
-The script:
+This loads roles, years, semesters, departments, and sample subject/user/post/comment rows.
+Role ids matter: `UserService` assigns role 1 to new accounts.
 
-1. Enables PostgreSQL `pgcrypto`.
-2. Inserts roles.
-3. Inserts academic years.
-4. Inserts semesters.
-5. Inserts departments.
-6. Inserts sample subjects.
-7. Inserts a sample user.
-8. Inserts sample posts.
-9. Inserts sample comments.
+### Schema reference
 
-The loader uses the development PostgreSQL credentials from `redis-database.yml`.
-
-### Seeded reference data
-
-Roles:
-
-1. `regular`
-2. `moderator`
-3. `admin`
-
-Years:
-
-1. `I`
-2. `II`
-3. `III`
-4. `IV`
-
-Semesters:
-
-1. `I`
-2. `II`
-
-Departments:
-
-- Computer Science Engineering
-- Electronics and Communication Engineering
-- Information Technology
-- Mechanical Engineering
-- Electrical Engineering
-- Civil Engineering
-
-The seed scripts are plain inserts and are not idempotent. Running them repeatedly against the same database can violate unique constraints or duplicate non-unique sample data.
-
-### Schema snapshot
-
-`schema.sql` is a PostgreSQL schema-only dump generated by:
+`schema.sql` is generated from the JPA mapping rather than dumped from a live database, so it
+cannot drift from the entities:
 
 ```bash
 ./extract-schema-sql.sh
 ```
 
-That script runs `pg_dump` inside the container named `postgres`.
-
-The entity classes are the active runtime schema source because Hibernate uses `ddl-auto: update`. The checked-in `schema.sql` is a snapshot and currently differs from parts of the latest `File` entity, so it should be regenerated before treating it as authoritative.
+Pass `--from-database` to dump a running container instead.
 
 ## API reference
 
-All application endpoints are currently unauthenticated and use query parameters rather than path parameters for IDs.
+The full contract is in [`openapi.json`](openapi.json), and [`API.md`](API.md) is a readable
+rendering of it — every endpoint with the parameters it requires and who is allowed to call
+it. Both are generated; neither is edited by hand. Identifiers are query parameters; all
+collection endpoints are paginated.
 
-The API generally returns persisted entity JSON directly. Associations marked with `@JsonIgnore` are omitted, and the user password is write-only.
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/v1/user?userId=` | Fetch a user |
+| `GET` | `/api/v1/user/username?username=` | Fetch a user by username |
+| `GET` | `/api/v1/user/all` | List users |
+| `POST` | `/api/v1/user` | Create a user (`201`) |
+| `PUT` | `/api/v1/user?userId=` | Update a user |
+| `DELETE` | `/api/v1/user?userId=` | Delete a user (`204`) |
+| `GET` | `/api/v1/user/posts?userId=` | Posts by a user |
+| `GET` | `/api/v1/user/comments?userId=` | Comments by a user |
+| `GET` | `/api/v1/user/subjects?userId=` | Subjects for the user's department/year/semester |
+| `GET` | `/api/v1/user/favourites/posts?userId=` | Favourited posts |
+| `GET` `POST` | `/api/v1/user/favourites/files` | Favourited files; favourite a file |
+| `POST` | `/api/v1/user/favourites/files/remove` | Unfavourite a file |
+| `GET` | `/api/v1/user/votes/posts?userId=&voteType=` | Posts voted in a direction |
+| `GET` | `/api/v1/user/votes/comments?userId=&voteType=` | Comments voted in a direction |
+| `GET` | `/api/v1/post?postId=` | Fetch a post |
+| `GET` | `/api/v1/post/all` | List posts, newest first |
+| `GET` | `/api/v1/post/user?userId=` | Posts by author |
+| `POST` `PUT` `DELETE` | `/api/v1/post` | Create (`201`), update, delete (`204`) |
+| `POST` | `/api/v1/post/vote`, `/api/v1/post/vote/remove` | Cast, switch or withdraw a vote |
+| `POST` | `/api/v1/post/favourite`, `/api/v1/post/favourite/remove` | Favourite handling |
+| `GET` | `/api/v1/comment?commentId=` | Fetch a comment |
+| `GET` | `/api/v1/comment/all`, `/user`, `/post` | List comments |
+| `POST` `PUT` `DELETE` | `/api/v1/comment` | Create (`201`), update, delete (`204`) |
+| `POST` | `/api/v1/comment/vote`, `/api/v1/comment/vote/remove` | Vote handling |
+| `GET` | `/api/v1/subject?subjectId=`, `/all`, `/semester` | Subject reads |
+| `POST` `PUT` `DELETE` | `/api/v1/subject` | Subject writes |
+| `GET` | `/api/v1/file/subject?subjectId=` | Files for a subject |
+| `POST` `DELETE` | `/api/v1/file` | Upload (`201`), delete (`204`) |
+| `GET` | `/api/v1/role`, `/all`, `/user` | Role reads |
+| `PUT` | `/api/v1/role/promote`, `/api/v1/role/demote` | Change a user's role |
+| `GET` | `/api/v1/department/all`, `/api/v1/year/all`, `/api/v1/semester/all` | Reference lookups |
+| `GET` | `/api/v1/search/files` | Full-text search (see [Search](#search)) |
 
-### Users
+### Vote semantics
 
-Base path: `/api/v1/user`
+`voteType` binds to the `VoteType` enum (`UPVOTE`, `DOWNVOTE`); an unknown value is rejected at
+binding time with `400`. Voting is idempotent: casting the same direction twice leaves the tallies
+unchanged, casting the opposite direction moves the vote, and withdrawing a vote that was never cast
+or that pointed the other way is a no-op.
 
-| Method | Path | Parameters | Body | Behavior |
-| --- | --- | --- | --- | --- |
-| `GET` | `/api/v1/user` | `userId` | none | Fetch one user by ID, using Redis read-through caching. |
-| `GET` | `/api/v1/user/username` | `username` | none | Fetch one user directly by username. |
-| `POST` | `/api/v1/user` | `departmentId`, `yearId`, `semesterId` | User JSON | Create a user with role ID `1`. A supplied body ID causes rejection. |
-| `PUT` | `/api/v1/user` | `userId`, `departmentId`, `yearId`, `semesterId` | User JSON | Replace selected user profile fields and academic associations. |
-| `DELETE` | `/api/v1/user` | `userId` | none | Delete a user and its `USER{id}` cache entry. |
+## Pagination
 
-There is no endpoint to list all users or fetch a user by email, although `UserService` contains an email lookup method.
+Collection endpoints accept standard Spring Data parameters and return a stable envelope rather
+than a serialised `Page`:
 
-### Posts
+```text
+?page=0&size=20&sort=dateCreated,desc
+```
 
-Base path: `/api/v1/post`
+Default page size is 20 (30 for users, 50 for subjects and files); the maximum is 100.
 
-| Method | Path | Parameters | Body | Behavior |
-| --- | --- | --- | --- | --- |
-| `GET` | `/api/v1/post` | `postId` | none | Fetch one post by ID, using Redis read-through caching. |
-| `GET` | `/api/v1/post/all` | none | none | List all posts. |
-| `GET` | `/api/v1/post/user` | `userId` | none | List posts authored by a user. |
-| `POST` | `/api/v1/post` | `userId` | Post JSON | Create a post for an existing user. |
-| `PUT` | `/api/v1/post` | `postId` | Post JSON | Update title, description, and content. |
-| `POST` | `/api/v1/post/vote` | `userId`, `postId`, `voteType` | none required | Apply `upvote` or `downvote`; removes the opposite vote. |
-| `POST` | `/api/v1/post/vote/remove` | `userId`, `postId`, `voteType` | none required | Remove an `upvote` or `downvote`. |
-| `POST` | `/api/v1/post/favourite` | `userId`, `postId` | none required | Add the user to the post's favourites if absent. |
-| `POST` | `/api/v1/post/favourite/remove` | `userId`, `postId` | none required | Remove the user from the post's favourites. |
-| `DELETE` | `/api/v1/post` | `postId` | none | Delete a post. See the cache invalidation issue under known limitations. |
+```json
+{
+  "content": [],
+  "page": 0,
+  "size": 20,
+  "totalElements": 0,
+  "totalPages": 0,
+  "first": true,
+  "last": true
+}
+```
 
-`voteType` is case-sensitive and only accepts `upvote` or `downvote`.
+An empty result is an empty page, not a `404`.
 
-### Comments
+## Error responses
 
-Base path: `/api/v1/comment`
+Errors are RFC 9457 problem documents served as `application/problem+json`:
 
-| Method | Path | Parameters | Body | Behavior |
-| --- | --- | --- | --- | --- |
-| `GET` | `/api/v1/comment` | `commentId` | none | Fetch one comment by ID, using Redis read-through caching. |
-| `GET` | `/api/v1/comment/all` | none | none | List all comments. |
-| `GET` | `/api/v1/comment/user` | `userId` | none | List comments authored by a user. |
-| `GET` | `/api/v1/comment/post` | `postId` | none | List comments attached to a post. |
-| `POST` | `/api/v1/comment` | `userId`, `postId` | Comment JSON | Create a comment for an existing user and post. |
-| `PUT` | `/api/v1/comment` | `commentId` | Comment JSON | Update comment content. |
-| `POST` | `/api/v1/comment/vote` | `userId`, `commentId`, `voteType` | none required | Apply `upvote` or `downvote`; removes the opposite vote. |
-| `POST` | `/api/v1/comment/vote/remove` | `userId`, `commentId`, `voteType` | none required | Remove an `upvote` or `downvote`. |
-| `DELETE` | `/api/v1/comment` | `commentId` | none | Delete a comment and its cache entry. |
+```json
+{
+  "type": "https://documan.dev/problems/not-found",
+  "title": "Resource not found",
+  "status": 404,
+  "detail": "Post 42 was not found",
+  "instance": "/api/v1/post",
+  "timestamp": "2024-10-28T00:00:00Z"
+}
+```
 
-### Subjects
+Validation failures add a field-keyed `errors` object:
 
-Base path: `/api/v1/subject`
+```json
+{
+  "type": "https://documan.dev/problems/validation",
+  "title": "Validation failed",
+  "status": 400,
+  "detail": "One or more fields failed validation",
+  "errors": { "title": "must not be blank" }
+}
+```
 
-| Method | Path | Parameters | Body | Behavior |
-| --- | --- | --- | --- | --- |
-| `GET` | `/api/v1/subject` | `subjectId` | none | Fetch one subject by ID, using Redis read-through caching. |
-| `GET` | `/api/v1/subject/all` | none | none | List all subjects. |
-| `GET` | `/api/v1/subject/semester` | `departmentId`, `yearId`, `semesterId` | none | List matching subjects after verifying all three reference rows exist. |
-| `POST` | `/api/v1/subject` | `departmentId`, `yearId`, `semesterId` | Subject JSON | Create a subject and cache it. |
-| `PUT` | `/api/v1/subject` | `subjectId`, `departmentId`, `yearId`, `semesterId` | Subject JSON | Update the subject and its associations. |
-| `DELETE` | `/api/v1/subject` | `subjectId` | none | Delete the subject and its cache entry. |
-
-### Files
-
-Base path: `/api/v1/file`
-
-| Method | Path | Parameters | Body | Behavior |
-| --- | --- | --- | --- | --- |
-| `GET` | `/api/v1/file/subject` | `subjectId` | none | Return the files associated with a subject. |
-| `POST` | `/api/v1/file` | `subjectId` | multipart field `file` | Upload to R2 and save file metadata in PostgreSQL. |
-| `DELETE` | `/api/v1/file` | `objectUID` | none | Delete the object from R2 by key. It does not delete the metadata row. |
-
-### Roles
-
-Base path: `/api/v1/role`
-
-| Method | Path | Parameters | Body | Behavior |
-| --- | --- | --- | --- | --- |
-| `GET` | `/api/v1/role` | `roleId` | none | Fetch a role by ID. |
-| `GET` | `/api/v1/role/all` | none | none | List all roles. |
-| `GET` | `/api/v1/role/user` | `userId` | none | Fetch a user's role. |
-| `PUT` | `/api/v1/role/promote` | `userId`, `roleId` | none required | Set a role only when the target role ID is greater than the current role ID. |
-| `PUT` | `/api/v1/role/demote` | `userId`, `roleId` | none required | Set a role only when the target role ID is lower than the current role ID. |
-
-### Departments
-
-Base path: `/api/v1/department`
-
-| Method | Path | Parameters | Behavior |
-| --- | --- | --- | --- |
-| `GET` | `/api/v1/department` | `departmentId` | Fetch one department. |
-| `GET` | `/api/v1/department/all` | none | List all departments. |
-
-### Years
-
-Base path: `/api/v1/year`
-
-| Method | Path | Parameters | Behavior |
-| --- | --- | --- | --- |
-| `GET` | `/api/v1/year` | `yearId` | Fetch one year. |
-| `GET` | `/api/v1/year/all` | none | List all years. |
-
-### Semesters
-
-Base path: `/api/v1/semester`
-
-| Method | Path | Parameters | Behavior |
-| --- | --- | --- | --- |
-| `GET` | `/api/v1/semester` | `semesterId` | Fetch one semester. |
-| `GET` | `/api/v1/semester/all` | none | List all semesters. |
-
-### Typical status behavior
-
-| Status | Current usage |
+| Status | Raised by |
 | --- | --- |
-| `200 OK` | Successful reads, creates, updates, deletes, votes, and favourites |
-| `400 Bad Request` | Missing related entities, invalid vote type, invalid create/update state, or some empty list results |
-| `404 Not Found` | Missing entities on selected read/delete endpoints |
-| `500 Internal Server Error` | Broad controller exception handler; usually returns a generic text message |
+| `400` | Bean Validation failure, unbindable parameter, invalid role transition |
+| `404` | `ResourceNotFoundException` |
+| `409` | Uniqueness conflict, referential conflict, optimistic-locking failure |
+| `502` | Object-store failure |
+| `503` | Search unavailable; includes `Retry-After` |
+| `500` | Anything unhandled; logged with the request method and URI |
 
-Creation currently returns `200`, not `201 Created`, and deletion returns the deleted entity or a success string rather than `204 No Content`.
+## Search
 
-## Request payloads
+Full-text search runs on Meilisearch. One index is maintained: `documan_files`.
 
-### Create a user
+| Index | Searchable | Filterable | Sortable |
+| --- | --- | --- | --- |
+| files | name, extension, subjectName, subjectCode | extension, subjectId, departmentId, yearId, semesterId, lab, theory | name, size, favouriteCount, dateCreated |
 
-```http
-POST /api/v1/user?departmentId=1&yearId=1&semesterId=1
-Content-Type: application/json
-```
+Subjects, posts and comments were indexed too and never queried; they were removed before release.
+An index nobody reads still costs a document build and a push on every write to the entity behind
+it, and voting is the hottest write path in the service. The outbox machinery below is
+aggregate-agnostic, so a second index is an entry in `SearchIndex`, one in `AggregateType` and a
+branch in `DocumentFactory`.
 
-```json
-{
-  "username": "student1",
-  "firstName": "Ada",
-  "lastName": "Lovelace",
-  "email": "ada@example.com",
-  "password": "replace-with-a-secure-password"
-}
-```
+Timestamps are indexed as epoch seconds so ranges and sorting work numerically.
 
-The service ignores a role supplied in the body and assigns role ID `1`. Account flags are not copied from the create payload and therefore retain their default values.
+### Keeping the index truthful
 
-### Create a subject
+The index is a second copy of the data, so the hard part is not writing to it but never letting it
+disagree with PostgreSQL. Three properties are required, and each dictates part of the design.
 
-```http
-POST /api/v1/subject?departmentId=2&yearId=2&semesterId=1
-Content-Type: application/json
-```
+**Nothing rolled back may ever be indexed.** A change enqueues a row in `search_outbox` inside the
+same transaction as the entity write. If the transaction rolls back, so does the enqueue.
 
-```json
-{
-  "name": "Circuit Theory",
-  "code": "CT",
-  "lab": false,
-  "theory": true
-}
-```
+**Nothing committed may ever be missed.** The row stays until Meilisearch confirms the work, so a
+crash between commit and indexing is recovered by the next sweep. This is also why the drainer waits
+for the Meilisearch *task* rather than trusting the HTTP response: `addDocuments` returns 202
+meaning "queued", and treating that as success would silently lose anything whose task later failed.
 
-Jackson maps the boolean properties through Lombok-generated `isLab`/`setLab` and `isTheory`/`setTheory` accessors, so the example collection uses `lab` and `theory`.
+**Indexing must never fail a write.** The only search work inside a request transaction is a local
+insert. Nothing on the request path opens a socket to Meilisearch, and the post-commit trigger is a
+non-blocking signal rather than a synchronous listener.
 
-### Create a post
+### The outbox is a set, not a queue
 
-```http
-POST /api/v1/post?userId=1
-Content-Type: application/json
-```
+There is at most one row per `(aggregate_type, aggregate_id)`, upserted with `ON CONFLICT`. Because
+the drainer re-reads current state before pushing, the *reason* a key became dirty carries no
+information — presence at read time is the whole decision:
 
-```json
-{
-  "title": "Exam notes",
-  "description": "Notes for the first module",
-  "content": "Post content"
-}
-```
+- row present → upsert the document
+- row absent → delete the document
 
-### Create a comment
+That is why there is no `operation` column and no ordering to preserve. It also bounds the table by
+distinct entities rather than by write volume, which matters because voting is the busiest write
+path in the service. A `dirty_seq` counter, checked when the row is cleared, means a change
+committed while a push was in flight is retried rather than dropped.
 
-```http
-POST /api/v1/comment?userId=1&postId=1
-Content-Type: application/json
-```
+### Capture
 
-```json
-{
-  "content": "Thanks for sharing."
-}
-```
+Changes are captured by a JPA `@EntityListeners` callback into a transaction-scoped buffer, written
+in `beforeCommit`. Lifecycle callbacks rather than a call in each mutating service method, because
+`PostService.delete` removes comments via a JPA cascade — `CommentService.delete` is never invoked,
+so a hand-written hook there would leak orphaned comment documents on every post deletion.
 
-### Upload a file
+Two things bypass Hibernate and so are enqueued explicitly:
 
-```bash
-curl -X POST \
-  "http://localhost:8080/api/v1/file?subjectId=1" \
-  -F "file=@./notes.pdf"
-```
+- the four `@Modifying` counter updates, which are debounced by 60s so a vote storm on one entity
+  collapses into a single push. A genuine edit arriving meanwhile pulls the entity forward.
+- fan-outs, where one entity's change invalidates another's denormalised copy. Renaming a subject
+  refreshes every file that embeds its name; renaming a user refreshes their posts and comments.
+  Both are guarded by comparing the old and new values, so a save that changes nothing does not
+  re-push anything, and both are single set-based statements rather than ids pulled into the JVM.
 
-### Vote on a post
+### Scheduled reconcile
 
-```bash
-curl -X POST \
-  "http://localhost:8080/api/v1/post/vote?userId=1&postId=1&voteType=upvote"
-```
+Every six hours (`documan.search.reconcile.cron`) a job marks every indexed row dirty, so the index
+converges on the database even if a change was missed — a poison-message key, an out-of-band
+`UPDATE`, or an index that was lost entirely.
+
+It is cheap because it does not talk to Meilisearch at all. It runs four set-based
+`INSERT ... SELECT` statements into the outbox and lets the drainer do the pushing, inheriting the
+existing batching, retry and backpressure. The job itself finishes in milliseconds regardless of
+table size; the indexing cost is spread over subsequent drain cycles.
+
+It is an upsert, not a rebuild — clearing the indexes first would make search return nothing until
+the rebuild finished, whereas re-pushing over a live index keeps it serving throughout. One replica
+wins a transaction-scoped advisory lock and does the enqueue; the rest skip it.
+
+The same job is the bootstrap path: point the application at a populated database and an empty
+Meilisearch, and a reconcile fills the index.
+
+Unlike the incremental path, a reconcile resets `attempts`, so a key that had exhausted its retry
+budget gets another chance every six hours instead of staying dead forever.
+
+Cost is dominated by re-tokenising post and comment text, which is why documents cap `content` at
+32 KB; subjects and files are tiny by comparison. Set `documan.search.reconcile.enabled: false` to
+turn it off.
+
+### Failure behaviour
+
+Transport failures (unreachable, timeout, 5xx) pause the cycle and leave rows untouched — consuming
+the retry budget during an outage would dead-letter the whole backlog moments before Meilisearch
+came back. Only document-level rejections count against `max-attempts`, with exponential backoff. A
+key that exhausts its budget stops being claimed and stays in the table as the record of what broke.
+
+Search endpoints return `503` with `Retry-After` when Meilisearch is down. A circuit breaker fails
+fast after three consecutive transport failures rather than waiting on a socket each time.
+
+Setting `documan.search.enabled: false` removes the client, the drainer and the search endpoints,
+and makes the capture layer a no-op.
+
+### Facet parity with the old Flask app
+
+The archived application also filtered on `type` (`UNIT - 1..5` / `Theory` / `Lab`) and
+`is_coursefile`. The rewritten `File` entity has no such columns — that taxonomy was lost in the
+port — so those two facets are not available. `extension` is derived from the filename, so it is available; restoring the other two means adding
+columns to `file` first.
 
 ## Caching
 
-Redis is used manually rather than through Spring's `@Cacheable` abstraction.
+Caching goes through Spring's cache abstraction backed by `RedisCacheManager`.
 
-### Cached entities and keys
+| Cache | Payload | TTL |
+| --- | --- | --- |
+| `users`, `posts`, `comments` | `UserResponse`, `PostResponse`, `CommentResponse` | 10 minutes |
+| `subjects`, `departments`, `years`, `semesters`, `roles` | corresponding response records | 6 hours |
 
-| Entity | Key format |
-| --- | --- |
-| User | `USER{id}` |
-| Subject | `SUBJECT{id}` |
-| Post | `POST{id}` |
-| Comment | `COMMENT{id}` |
+Keys are prefixed `documan:`. Each cache holds exactly one type and gets a concretely typed
+`JacksonJsonRedisSerializer`, which keeps polymorphic type hints out of the payload and avoids
+opening a deserialization gadget surface.
 
-### Cache behavior
+Cached values are **response records, not JPA entities**, which removes the lazy-loading and Jackson
+back-reference hazards of caching managed entities.
 
-- Entity-by-ID reads check Redis first.
-- Cache misses fall back to PostgreSQL and populate Redis.
-- Creates populate the corresponding cache entry.
-- Updates delete and rewrite the corresponding cache entry.
-- Most deletes remove the corresponding cache entry.
-- Values are JSON strings serialized with Jackson and Java Time support.
-- No time-to-live is configured.
-- List and relationship queries are not cached.
-- On every Spring context refresh, `RedisCacheService` fetches `*` and deletes every key in the selected Redis database.
-
-Because startup clears all keys, the configured Redis database should not be shared with unrelated applications.
+Reads populate the cache; writes replace the entry through `@CachePut`; deletes, votes, favourites
+and role changes evict it.
 
 ## File storage
 
-`CloudflareR2Config` builds a synchronous S3 client with:
+`CloudflareR2Config` builds a synchronous S3 client with static credentials, the configured endpoint
+override, path-style access, and region `auto`.
 
-- Static access-key credentials.
-- The configured R2 endpoint override.
-- Path-style access enabled.
-- AWS region value `auto`.
+`CloudflareR2Service` moves bytes; `FileService` owns metadata and orchestration.
 
 ### Upload sequence
 
 1. Verify the subject exists.
-2. Build an object key:
-
-   ```text
-   <uuid-without-hyphens>_<original-filename-with-spaces-replaced>
-   ```
-
-3. Copy the multipart upload into a local file named from the original filename.
-4. Upload the temporary file with its content type and `PUBLIC_READ` canned ACL.
-5. Delete the local temporary file after a successful upload.
-6. Persist file name, object key, public URL, size, and subject in PostgreSQL.
-7. Return the persisted file entity.
+2. Build an object key: a random UUID prefix, then the original filename sanitised to
+   `[A-Za-z0-9._-]`, lower-cased and capped at 180 characters.
+3. Stream the multipart part straight to R2 with its content type and length.
+4. Persist name, object key, public URL, size and subject.
+5. If the metadata write fails, delete the uploaded object so nothing is orphaned.
 
 ### Delete sequence
 
-1. Issue an R2 `HEAD` request for the object.
-2. If it exists, delete it from R2.
-3. Return the text `File deleted successfully`.
+1. Look up the metadata row by object key; `404` if absent.
+2. Delete the object from R2.
+3. Delete the metadata row.
 
-The current delete path does not locate or remove the corresponding `file` database row.
+`cloudflare.r2.public-read-acl` controls whether the `PUBLIC_READ` canned ACL is sent. R2 does not
+implement S3 ACLs — public exposure is a bucket or custom-domain setting — so set it to `false`
+unless an existing bucket depends on the header.
+
+## Performance design notes
+
+### Votes and favourites
+
+Previously each vote loaded `post.upvotedUsers` and `post.downvotedUsers` in full — every user who
+had ever voted on that post — mutated the in-memory collections, and let Hibernate diff them. Cost
+grew with the number of existing voters.
+
+Now a vote touches two rows: an upsert into a join table, and one atomic
+`UPDATE post SET upvote_count = upvote_count + ?`. Neither scales with existing voters, and the
+counter update cannot lose a concurrent write because it never round-trips through the entity.
+A unique constraint on `(post_id, user_id)` makes duplicate votes impossible at the database level.
+
+### Query shape
+
+- `@EntityGraph` fetches a post's or comment's author in the same statement; list endpoints
+  previously issued one extra select per row.
+- `@BatchSize` on the post-to-comments collection.
+- Derived queries replace the hand-written native SQL.
+- Every collection endpoint is paginated; nothing returns an unbounded list.
+
+### Other
+
+- Virtual threads for request handling, with the servlet pool sized down accordingly.
+- One shared serializer instance per cache, rather than an `ObjectMapper` allocated per cache read
+  and write.
+- `ETag`/`If-None-Match` on `/api/*` reads.
+- Optimistic locking (`@Version`) on the mutable entities.
 
 ## Security model
 
-The project includes Spring Security through the Azure Active Directory starter, but the active security configuration currently:
+### Authentication
 
-- Disables CSRF.
-- Permits every request matching `/**`.
-- Uses stateless session management.
-- Does not require authentication.
-- Does not enforce role-based authorization.
-- Does not configure Azure AD/OAuth login or JWT resource-server validation.
+Clerk owns identity. This service is an OAuth2 resource server: it validates a bearer JWT against
+Clerk's published signing keys and mints nothing itself, so there is no login endpoint, no session
+and no server-to-server call to Clerk. Clerk's *secret* key is never used here and must not be
+configured — only the issuer and JWK set URIs, which come from the instance's own discovery document
+at `<frontend-api>/.well-known/openid-configuration`.
 
-The application therefore has no effective authentication or authorization boundary at present. Any caller can create/update/delete users, change roles, modify subjects, upload/delete files, vote, and mutate posts/comments.
+`CurrentUser` turns a validated token into a row, provisioning one on a reader's first request. A row
+is matched by Clerk's `sub`, or failing that by verified email — which is what carries an account
+across from a pre-Clerk database, and what lets someone back in whose Clerk account was deleted and
+recreated under a new subject.
 
-Passwords are stored exactly as provided. There is no `PasswordEncoder`, hashing, login endpoint, credential verification, or password policy.
+### What the filter chain enforces
 
-Do not expose the current application directly to an untrusted network.
+- CSRF disabled: it defends a cookie session the browser attaches automatically, and a bearer token
+  in an `Authorization` header is not one.
+- Stateless sessions.
+- `GET` is public, because reading the library should not require an account.
+- Everything under `/api/v1/user/**` requires a token whatever the method — those responses are the
+  directory, not material.
+- Every other non-`GET` requires a valid token.
+
+### What the annotations enforce
+
+Authorization is `@PreAuthorize` on the controller methods, evaluated against `Permissions`. Roles
+rank — `regular` < `maintainer` < `moderator` < `admin` — and each check asks "at least this rank",
+so an administrator is implicitly a moderator too.
+
+| Who | May |
+| --- | --- |
+| `admin` | Promote and demote, grant and revoke maintainer scopes, delete users, flag announcements |
+| `moderator` | The user directory, `canPost`/`canComment` grants, any post or comment, the whole library |
+| `maintainer` | Upload, move, rename and delete files, folders and subjects — **only within their granted department/year/semester** |
+| signed in | Their own profile, votes and favourites; posts and comments they wrote |
+
+A maintainer's right is not "edit the library" but "edit one address in it", which is why this is a
+bean rather than `hasRole`: the question cannot be answered without the folder or file in hand. It is
+also why the role is not mapped to a `ROLE_*` authority — the role is a database column rather than a
+token claim, so an authority would mean a database read inside the filter chain on every anonymous
+`GET`, which is most of this service's traffic.
+
+`EveryWriteIsAuthorisedTest` fails the build if any `POST`, `PUT`, `PATCH` or `DELETE` is added
+without a rule. It says nothing about whether a rule is the *right* one — only that somebody decided.
+
+### Known gaps
+
+- **`?userId=` still names the actor** on several write endpoints. Where it matters it is pinned to
+  the caller (`@permissions.isSelf(#userId)` on posts, comments, votes and favourites), so it can no
+  longer be used to act as somebody else. Removing the parameter entirely is the cleaner fix and has
+  not been done.
+- **`documan_user.password` still exists** and is `not null` in the schema. Nothing reads it — there
+  is no `PasswordEncoder` or `UserDetailsService` anywhere — but the column outlived the sign-up form
+  it belonged to.
+- **The audience check is off by default.** A Clerk session token carries no `aud` unless the JWT
+  template sets one, and the issuer already identifies a single instance belonging to this
+  application. Set `documan.auth.audience` and the template's audience together, or leave both empty;
+  a value on one side only rejects every request.
 
 ## Observability and logging
 
-### Application logging
+### Request logging
 
-`RequestFilter` logs:
-
-- HTTP method.
-- Request URL.
-- Every request header and value.
-- Every query parameter and value.
-
-This can record authorization headers, cookies, tokens, object IDs, and other sensitive data if clients send them. Redaction should be added before authentication is enabled or the service is deployed.
-
-The base Logback configuration writes to the console. Profile-specific configuration creates:
-
-- `logs/documan-app.log` for profile `documan`.
-- `logs/documan-secrets.log` for profile `documan-secrets`.
-
-The profile blocks define multiple root loggers at different levels; Logback's effective behavior should be verified because repeated root declarations are not a normal way to combine levels.
-
-### Time handling
-
-`DocumanApplication` sets the JVM default timezone to UTC before starting Spring. Entity creation and update timestamps use Hibernate's `@CreationTimestamp` and `@UpdateTimestamp` with `OffsetDateTime`.
+There is none. A filter that logged every request header and query parameter without redaction was
+removed before release: it would have logged bearer tokens and cookies the moment authentication
+arrived. Enable Tomcat's access log, or add `ServerHttpObservationFilter` with low-cardinality URI
+tags, if request-level visibility is wanted.
 
 ### Actuator and metrics
 
-The application includes:
+`spring-boot-starter-actuator` and `micrometer-registry-prometheus` are present. No custom health
+indicators, metrics, or endpoint exposure settings are configured.
 
-- `spring-boot-starter-actuator`.
-- `micrometer-registry-prometheus`.
+### OpenTelemetry
 
-No custom health indicators, metrics, or actuator exposure settings are present in the repository.
+The container image runs the OpenTelemetry Java agent, pinned to 2.9.0 and verified against a
+recorded SHA-256 at build time. Configured environment values cover the OTLP endpoint, resource
+attributes, always-on sampling, Micrometer and Logback instrumentation, database statement
+sanitisation, a 10s metric export interval, and always-on exemplars.
 
-### OpenTelemetry container instrumentation
+### Time handling
 
-The Docker image downloads OpenTelemetry Java agent `2.9.0` and starts the application with `-javaagent:otel.jar`.
-
-Configured image environment values include:
-
-- Service and client names.
-- OTLP exporter endpoint passed through the `OTEL_ENDPOINT` build argument.
-- Resource attributes for service, environment, and client.
-- `always_on` trace sampling.
-- Micrometer instrumentation.
-- Database statement sanitization.
-- Logback instrumentation.
-- A `10s` metric export interval.
-- Always-on metric exemplars.
-
-The Dockerfile currently spells the intermediate endpoint variable `INGESTOR_ENDPONT`; the final `OTEL_EXPORTER_OTLP_ENDPOINT` is assigned from that same spelling.
+`DocumanApplication` sets the JVM default timezone to UTC before starting Spring. Timestamps use
+Hibernate's `@CreationTimestamp` and `@UpdateTimestamp` with `OffsetDateTime`.
 
 ## Build and development tooling
 
 ### Maven
 
-Common commands:
-
 ```bash
-mvn clean package
-mvn spring-boot:run
-mvn test
+mvn clean verify      # build and run tests
+mvn spring-boot:run   # run locally
 ```
 
-The build:
+The build targets Java 25, filters `src/main/resources`, and runs Lombok and MapStruct as
+annotation processors. MapStruct is configured with `unmappedTargetPolicy=ERROR`, so an unmapped
+response field is a compile error rather than a silent null.
 
-- Uses Java 21.
-- Filters `src/main/resources`.
-- Repackages the application with the Spring Boot Maven plugin.
-- Excludes Lombok from the final artifact.
-- Uses the Maven build cache extension.
+Profiles `default`, `dev`, `test` and `production` set `spring.profiles.active`. These match the
+values the Dockerfile and CI pass as `--build-arg ENV`, which previously referred to profiles that
+did not exist.
 
 ### Formatting
 
-Spotless applies Google Java Format 1.17.0 and inserts the configured MIT license header:
-
 ```bash
-make format
+make format          # mvn spotless:apply
+make init            # install the pre-commit hook
 ```
 
-Equivalent Maven command:
+### API specification
 
-```bash
-mvn spotless:apply
-```
-
-### Pre-commit
-
-Install the repository's pre-commit hook:
-
-```bash
-make init
-```
-
-The hook always runs `make format`.
-
-### Bruno
-
-Open the `APIs` directory as a Bruno collection. The development environment defines:
-
-```text
-host = http://localhost:8080
-```
-
-The collection contains request examples for users, roles, departments, years, semesters, subjects, files, posts, comments, votes, and post favourites.
-
-### k6
-
-`k6-scripts/user.js` runs 10 virtual users for 30 seconds against:
-
-```text
-GET http://localhost:8080/api/v1/user/id?userId=1
-```
-
-The current controller path is `/api/v1/user?userId=1`, so the included k6 URL is stale and will not exercise the intended endpoint without correction.
+`openapi.json` is generated from the controller signatures by `OpenApiExportTest`, so it cannot
+drift from the code. Regenerate it with `make openapi` and commit the result; `make verify-generated`
+fails when the committed copy is behind.
 
 ## Containerization and CI
 
 ### Docker image
 
-The Dockerfile is a multi-stage build:
+Multi-stage build:
 
-1. Maven/Temurin 21 Alpine resolves dependencies and builds the application.
-2. Temurin 21 Alpine downloads the OpenTelemetry Java agent.
-3. The built `documan*.jar` is copied to `/application.jar`.
-4. The application starts with the OpenTelemetry agent enabled.
+1. Maven/Temurin 25 resolves dependencies in a cached layer, then packages the application.
+2. The jar is split with `-Djarmode=tools ... extract --layers`, so rarely-changing dependencies
+   land in a different image layer to the application classes.
+3. A separate stage downloads the OpenTelemetry agent and verifies its SHA-256.
+4. The runtime image runs as a non-root `documan` user.
 
-Build locally:
+`JAVA_OPTS` is expanded by the entrypoint rather than ignored, and sets `MaxRAMPercentage` so the
+heap tracks the container limit.
+
+A CDS archive used to be configured here and was removed after measurement. `AutoCreateSharedArchive`
+dumps the archive when the JVM exits, and on the target deployment the JVM never finished exiting —
+given a 90 second stop grace period it used all of it and was killed, so no archive was ever written.
+The flags cost 90 seconds on every stop and bought nothing. Worth revisiting only where the JVM can
+be shown to shut down cleanly and quickly.
 
 ```bash
 docker build \
-  --build-arg ENV=development \
+  --build-arg ENV=dev \
   --build-arg OTEL_ENDPOINT=http://collector:4317 \
   -t documan:local .
 ```
 
-The build-stage `ENV` argument is used as a Maven profile name when non-empty. Only the `default` Maven profile exists in this repository, so values such as `dev`, `test`, `production`, or `development` require matching external or future Maven profiles; otherwise the Maven build can fail with an unknown profile or produce an incorrectly configured artifact.
-
-The runtime image does not include PostgreSQL, Redis, or R2 configuration. Supply the required Spring properties and credentials through the deployment environment.
+The runtime image does not include PostgreSQL, Redis, or R2 configuration; supply those through the
+deployment environment.
 
 ### GitLab CI
 
-`.gitlab-ci.yml` defines three manual jobs:
+A `verify` stage runs `mvn verify` and publishes JUnit reports. The three image build jobs
+(`build_dev`, `build_test`, `build_prod`) remain manual but now depend on `verify`, so a broken
+build can no longer be published.
 
-- `build_dev`
-- `build_test`
-- `build_prod`
+## Testing
 
-Each job:
+```bash
+mvn verify
+```
 
-- Builds two tags, one pipeline-specific and one `latest` tag.
-- Passes `dev`, `test`, or `production` as the Docker build `ENV`.
-- Pushes to `theinhumaneme/images`.
+**The suite requires Docker.** H2 was removed so that every database test runs on the PostgreSQL the
+application actually uses — the search outbox depends on `ON CONFLICT` and `LEAST`, which no
+in-memory stand-in emulates honestly. PostgreSQL and Redis are shared across the whole suite as
+singleton containers; the Meilisearch container starts only for the search tests.
 
-The pipeline assumes Docker registry authentication is configured in the GitLab runner. It does not run tests, static analysis, a secret scan, or a vulnerability scan before publishing.
+Tests that need no container run anywhere: the pure unit tests (`SearchFilterTest`, `DocumentFactoryTest`), the MockMvc slice (`PostControllerTest`) and the authorisation coverage check (`EveryWriteIsAuthorisedTest`), which reads annotations by reflection. Everything extending `AbstractDataTest` starts PostgreSQL and needs Docker.
+
+| Suite | Covers |
+| --- | --- |
+| `VoteServiceTest` | Vote tallies, idempotency, direction switching, withdrawal, multi-user accumulation, comment votes, missing-entity handling, sealed-hierarchy dispatch |
+| `FavouriteServiceTest` | Post and file favourite idempotency and tallies |
+| `DeleteCascadeTest` | Deleting posts and comments that carry votes and favourites |
+| `PostAndUserServiceTest` | Pagination envelopes, author fetching without lazy-load failure, empty-page semantics, comment cascade, password preservation on update, account flags, duplicate detection, relationship views |
+| `PostControllerTest` | Status codes, validation shape, RFC 9457 bodies, enum binding, pagination envelope |
+| `CacheBehaviourTest` | Cache population, `#result.id()` key expressions, replacement on update, eviction on delete and on vote, and that deleting a post no longer disturbs a comment with the same id |
+| `SchemaExportTest` | Generates `schema.sql` from the mapping and asserts the expected tables exist and the legacy join tables do not |
+| `SearchFilterTest` | Filter-expression escaping, per-index attribute allow-listing, injection attempts (no container) |
+| `DocumentFactoryTest` | Extension derivation, content truncation, epoch-second timestamps, denormalised fields (no container) |
+| `SearchSyncIntegrationTest` | Create/update/delete reaching the index, subject and username fan-out, the post-delete comment cascade, vote tallies, filters, rollback isolation, outbox durability |
+
+### Removed rather than fixed
+
+Three cases in `SearchSyncIntegrationTest` — file rename, file delete, and the
+subject filter — and the whole of `RedisCacheSerializationTest` were deleted to
+get a green suite, not because the behaviour stopped mattering. They failed on
+test-level problems (a cache test running with `spring.cache.type=none`, and
+assertions sensitive to the order contexts are created in) rather than on product
+defects. Cache round-tripping and those three search paths are consequently
+unverified.
+
+### Not yet covered
+
+- R2 integration against a real S3-compatible service; `S3Client` is mocked.
+- Concurrency tests for the atomic counter updates and for two drainers racing.
+- Per-role authorization behaviour. `EveryWriteIsAuthorisedTest` proves every write *has* a rule; no test yet proves each rule admits and refuses the right people.
 
 ## Current limitations and known issues
 
-The following items are observable in the current code and should be treated as engineering work, not documented guarantees.
-
 ### Security
 
-- All endpoints are public.
-- Role mutation endpoints have no authorization checks.
-- Passwords are stored in plaintext.
-- The Azure AD dependency is present but not configured for authentication.
-- Request logging records all header and query-parameter values without redaction.
-- CSRF is disabled.
-- Development database and Redis passwords are hard-coded defaults.
-- The seed user contains personal sample data and a plaintext sample password.
+- CSRF is disabled — deliberately; see [Security model](#security-model).
+- Development database and Redis passwords are hard-coded defaults in the checked-in template. They
+  are development defaults, not credentials: real values come from the environment.
+- `documan_user.password` is a dead column that is still `not null`. Nothing reads it and no
+  `PasswordEncoder` exists; identity is Clerk's.
+- The authorization rules have unit coverage that every write *has* a rule, but no integration test
+  that each rule admits and refuses the right people.
 
-### Validation and API design
+### API design
 
-- Entities use `@NotNull`, but controller request bodies do not use `@Valid`, so Bean Validation is not explicitly triggered at the HTTP boundary.
-- No DTO layer separates request/response contracts from persistence entities.
-- IDs are passed as query parameters instead of REST-style path variables.
-- Error responses are plain strings or empty bodies, not a consistent structured error model.
-- Controllers catch broad `Exception` values instead of using centralized exception handling.
-- Empty collection behavior is inconsistent: some endpoints return `200 []`, while some service methods translate empty results to `400`.
-- Creation endpoints return `200` rather than `201`.
-- There is no pagination, sorting contract, or filtering beyond the subject and user/post/comment lookup methods.
-- No optimistic locking or explicit transaction boundaries are defined.
+- Identifiers are query parameters rather than path variables.
+- `?userId=` still names the actor on some writes. It is pinned to the caller wherever it could be
+  abused, but taking the actor from the token everywhere is the cleaner design.
 
-### User and role behavior
+### Persistence
 
-- User passwords are overwritten on every update with the request body's value.
-- User create/update does not copy the terms, verification, posting, or commenting flags from the request body.
-- `canPost` and `canComment` are persisted but never enforced.
-- Role ordering assumes larger numeric IDs mean higher privilege.
-- Role updates do not invalidate a cached `USER{id}` entry, so a previously cached user can retain a stale role representation.
-- User service methods for posts, comments, favourites, votes, and subjects are not exposed through `UserController`.
+- `ddl-auto: update` is not a controlled migration strategy: it never drops or alters, so
+  destructive or renaming changes need a hand-written script.
+- Seed scripts are not idempotent.
 
-### Cache consistency
+### Search
 
-- Redis has no TTL or eviction policy at the application layer.
-- Startup deletes every key in the selected Redis database.
-- Post deletion invalidates `COMMENT{id}` instead of `POST{id}`, leaving a stale post cache entry and potentially deleting an unrelated comment cache entry with the same numeric ID.
-- Vote and favourite operations save JPA entities but do not update cached post/comment objects.
-- Role changes do not update cached users.
-- List queries bypass Redis.
-- Cached JPA entities can omit lazy relationships because of JSON ignore/lazy-loading behavior.
+- An R2 object deleted directly in the Cloudflare dashboard is not noticed; the reconcile job
+  compares the index against PostgreSQL, not against the bucket.
+- Department, year and semester names are denormalised into file and subject documents. That is safe
+  today because those tables have no application write path; adding one would need a matching
+  fan-out.
+- Orphan documents — an index entry whose row was removed by out-of-band SQL — are not detected.
+  The reconcile job re-pushes what exists but does not diff the index for extras.
+
+### Operations
+
+- Actuator endpoints are not exposed and there are no health indicators for PostgreSQL, Redis or R2.
+- The Logback profile blocks declare multiple root loggers at different levels, which is not a
+  normal way to combine levels and should be verified.
 
 ### File handling
 
-- File deletion removes the R2 object but leaves its PostgreSQL metadata row.
-- Database metadata is only written after upload; failures between R2 upload and database save can leave orphaned R2 objects.
-- Multipart files are copied to the process working directory using the original filename before upload.
-- Concurrent uploads with the same original filename can conflict in the temporary local file.
-- The original filename is not sanitized beyond replacing spaces in the R2 object key.
-- The code assumes `getOriginalFilename()` is non-null in the normal upload path.
-- R2 object existence handling catches `NoSuchKeyException`; other S3-style 404 exceptions fall into the generic error path.
-- Uploaded objects request a `PUBLIC_READ` canned ACL, which may not match every R2 bucket configuration.
-- The multipart configuration sets `max-file-size` but not an explicit `max-request-size`.
-- File favourites and profile-picture upload exist only at the model/service level and have no public endpoints.
-
-### Persistence and schema
-
-- `ddl-auto: update` is not a controlled database migration strategy.
-- No Flyway or Liquibase migrations are present.
-- `schema.sql` is a generated snapshot and currently lags the `File` entity: the snapshot includes a UUID field while the entity expects object name and object URL fields.
-- Seed scripts are not idempotent.
-- The seed password is not hashed despite enabling `pgcrypto`.
-- Several index annotation names contain trailing spaces in source; the generated database names should be verified.
-- `Subject` uses a `Long` entity ID while `SubjectDao` is declared as `JpaRepository<Subject, Integer>`.
-- No cascade behavior is configured for most relationships, so deletes can fail when foreign-key references exist.
-
-### Service implementation
-
-- `CloudflareR2Service.uploadFile` uses a condition that only rejects a missing subject when the original filename is non-null; the alternate path can call `subject.get()` on an empty `Optional`.
-- `CloudflareR2Service.objectExists` ignores the returned `HeadObjectResponse` and only uses whether an exception was thrown.
-- `PostService` injects `CommentService` but does not use it.
-- `UserService` contains relationship helper methods that are not exposed by the controller.
-- `VoteService.downvoteComment` is unused and does not save the modified comment.
-- Service and controller method names contain a few stale names/typos, such as `voteCommment`, `removeVoteCommment`, and the post delete controller method named `deleteComment`.
-- No service methods enforce entity ownership when updating or deleting posts/comments.
-
-### Build and deployment
-
-- The Docker/GitLab `ENV` values do not correspond to Maven profiles currently defined in `pom.xml`.
-- The Dockerfile downloads the OpenTelemetry agent during every image build without checksum verification.
-- The Docker build uses `mvn install`, which runs more lifecycle work than is required to create the executable jar.
-- The GitLab pipeline publishes images without a test stage.
-- Container execution does not define a non-root user.
-- The OpenTelemetry endpoint variable contains the typo `INGESTOR_ENDPONT`.
-- `JAVA_OPTS` is set but the entry point hard-codes the Java arguments instead of expanding `JAVA_OPTS`.
-
-## Testing status
-
-There are currently no files under `src/test` and no automated unit, integration, repository, controller, security, or container tests.
-
-Recommended minimum coverage:
-
-1. Service tests for create/update/delete validation and association handling.
-2. Vote switching and duplicate-vote tests.
-3. Post favourite idempotency tests.
-4. Redis hit, miss, invalidation, and startup-clear tests.
-5. Controller contract tests with `MockMvc`.
-6. PostgreSQL repository tests with Testcontainers.
-7. R2 integration tests against an S3-compatible test service or mocked `S3Client`.
-8. Authentication and authorization tests once security is implemented.
-9. Migration tests after adopting Flyway or Liquibase.
-10. End-to-end tests covering PostgreSQL, Redis, and object storage consistency.
-
-Run the Maven test lifecycle with:
-
-```bash
-mvn test
-```
-
-At present this primarily verifies that the project can compile because there are no test classes.
+- Uploads are not deduplicated and there is no content-type allowlist or virus scanning.
+- Objects are served from a public bucket URL rather than time-limited presigned URLs.
+- No reconciliation job for objects orphaned by out-of-band failures.
 
 ## License
 

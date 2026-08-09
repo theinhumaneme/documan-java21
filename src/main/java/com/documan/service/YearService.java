@@ -7,29 +7,25 @@
 package com.documan.service;
 
 import com.documan.dao.YearDao;
-import com.documan.entity.Year;
+import com.documan.dto.response.YearResponse;
+import com.documan.mapper.ReferenceMapper;
 import java.util.List;
-import java.util.Optional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Transactional(readOnly = true)
 public class YearService {
-  private static final Logger log = LoggerFactory.getLogger(YearService.class);
+
   private final YearDao yearDao;
+  private final ReferenceMapper referenceMapper;
 
-  @Autowired
-  public YearService(YearDao yearDao) {
+  public YearService(YearDao yearDao, ReferenceMapper referenceMapper) {
     this.yearDao = yearDao;
+    this.referenceMapper = referenceMapper;
   }
 
-  public Optional<Year> getYearById(Integer yearId) {
-    return yearDao.findById(yearId);
-  }
-
-  public Optional<List<Year>> getAllYears() {
-    return Optional.of(yearDao.findAll());
+  public List<YearResponse> findAll() {
+    return yearDao.findAll().stream().map(referenceMapper::toResponse).toList();
   }
 }

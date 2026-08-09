@@ -5,56 +5,65 @@ cloudflare:
     secret-access-key: <-SECRET ACCESS KEY->
     files-bucket: <-BUCKET NAME->
     files-bucket-public-access-url: <-BUCKET PUBLIC ACCESS URL->
-    user-bucket: <-BUCKET NAME->
+    # R2 does not implement S3 ACLs; set false when the bucket is exposed via a public dev URL or
+    # a custom domain instead of a canned ACL.
+    public-read-acl: true
+
+documan:
+  search:
+    # Set false to run without search: no client, no drainer, no /api/v1/search endpoints, and the
+    # capture layer becomes a no-op. Nothing else changes.
+    enabled: true
+    host: <-MEILISEARCH HOST->
+    api-key: <-MEILISEARCH API KEY->
+    # Index uids are global to a Meilisearch instance, so give every environment its own prefix.
+    # Two deployments sharing a server and a prefix will overwrite each other's documents.
+    index-prefix: documan_
 
 spring:
   devtools:
     add-properties: false
-  application:
-    name: "documan"
-  servlet:
-    multipart:
-      enabled: true
-      max-file-size: 25MB
-  data:
-    redis:
-      password: password
-      port: 6379
-      host: localhost
+
   jpa:
     database: postgresql
-    hibernate:
-      ddl-auto: update
     show-sql: true # remove in staging and production profiles
+
   datasource:
     url: jdbc:postgresql://localhost:5432/postgres
     username: root
     password: password
     driver-class-name: org.postgresql.Driver
     hikari:
+      # With virtual threads the pool, not the servlet container, is the concurrency limit for
+      # database work. 50 is well above what a single instance needs against one Postgres; keep it
+      # in step with the server's max_connections when scaling out.
       maximum-pool-size: 50
       minimum-idle: 10
       idle-timeout: 30000
       connection-timeout: 30000
       max-lifetime: 1800000
-      leak-detection-threshold: 2000
+      # Was 2000ms, which flags any query slower than two seconds as a suspected leak and produces
+      # a stack trace per occurrence. 30s still catches genuine leaks without the noise.
+      leak-detection-threshold: 30000
       auto-commit: false
-      connection-test-query: SELECT 1
       pool-name: HikariPool
-server:
-  port: 8080
-  tomcat:
-    accept-count: 200
-    threads:
-      max: 400
-      min-spare: 20
-  compression:
-    enabled: true
-    mime-types: application/json
-    min-response-size: 1024
-  error:
-    whitelabel:
-      enabled: off
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: password
+      timeout: 2s
+      lettuce:
+        # commons-pool2 is on the classpath; without this block Lettuce shares a single connection
+        # for all traffic, which serialises command dispatch under load.
+        pool:
+          enabled: true
+          max-active: 32
+          max-idle: 16
+          min-idle: 4
+          max-wait: 2s
+
 logging:
   level:
     org:
@@ -62,7 +71,3 @@ logging:
         web: debug # set to error in staging and production profiles
       hibernate: warn # set to error in staging and production profiles
     web: warn # set to error in staging and production profiles
-
-springdoc:
-  swagger-ui:
-    operations-sorter: method

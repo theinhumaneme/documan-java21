@@ -30,3 +30,6 @@ logs/
 *.iml
 persist
 src/main/resources/application-documan-secrets.yml
+# Holds real R2 keys and datastore passwords for local runs. Copy it from
+# application-dev.yml.example, which is the tracked placeholder version, and fill in your own.
+src/main/resources/application-dev.yml

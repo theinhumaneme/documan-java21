@@ -1,0 +1,88 @@
+# Local development profile.
+#
+#   docker compose -f redis-database.yml up -d
+#   mvn spring-boot:run -Pdev
+#
+# Every setting here points at the services in redis-database.yml, so a clone plus those two
+# commands is a working application. Nothing in this file is a secret; it is checked in
+# deliberately, unlike application-documan-secrets.yml which is gitignored.
+#
+# Each value can be overridden by an environment variable, so the same profile works when the
+# stack runs somewhere other than localhost — for example:
+#   DB_HOST=db.internal MEILI_HOST=http://search.internal:7700 mvn spring-boot:run -Pdev
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:postgres}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 30000
+      connection-timeout: 30000
+      max-lifetime: 1800000
+      leak-detection-threshold: 30000
+      auto-commit: false
+      pool-name: HikariPool
+
+  jpa:
+    database: postgresql
+    # Useful locally, and the reason this is not simply the production configuration.
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:password}
+      timeout: 2s
+      lettuce:
+        pool:
+          enabled: true
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+          max-wait: 2s
+
+documan:
+  search:
+    enabled: ${SEARCH_ENABLED:true}
+    host: ${MEILI_HOST:http://localhost:7700}
+    api-key: ${MEILI_MASTER_KEY:masterKey}
+    index-prefix: documan_dev_
+    reconcile:
+      enabled: ${SEARCH_RECONCILE_ENABLED:true}
+      # More frequent than production so the behaviour is visible during a working session.
+      cron: ${SEARCH_RECONCILE_CRON:0 */30 * * * *}
+    outbox:
+      # Short locally so a change shows up in search while you are still looking at it. Production
+      # holds counter-only changes for 60s to collapse vote storms.
+      poll-interval: 2s
+      counter-debounce: 5s
+
+cloudflare:
+  r2:
+    # Placeholders, not credentials. The application needs these properties to start, and without
+    # defaults you could not run it at all without an R2 account — which would block anyone working
+    # on search, posts or comments. File upload and delete will fail until real values are supplied;
+    # everything else works.
+    endpoint: ${R2_ENDPOINT:https://example.r2.cloudflarestorage.com}
+    access-key-id: ${R2_ACCESS_KEY_ID:dev-access-key}
+    secret-access-key: ${R2_SECRET_ACCESS_KEY:dev-secret-key}
+    files-bucket: ${R2_FILES_BUCKET:documan-files}
+    files-bucket-public-access-url: ${R2_FILES_PUBLIC_URL:https://example.com/documan-files}
+    # R2 does not implement S3 ACLs; off locally so an unconfigured bucket does not reject uploads.
+    public-read-acl: false
+
+logging:
+  level:
+    com.documan: debug
+    org.springframework.web: info
+    org.hibernate: warn
+    # Uncomment to see the SQL parameter values behind show-sql.
+    # org.hibernate.orm.jdbc.bind: trace

@@ -7,29 +7,25 @@
 package com.documan.service;
 
 import com.documan.dao.DepartmentDao;
-import com.documan.entity.Department;
+import com.documan.dto.response.DepartmentResponse;
+import com.documan.mapper.ReferenceMapper;
 import java.util.List;
-import java.util.Optional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Transactional(readOnly = true)
 public class DepartmentService {
-  private static final Logger log = LoggerFactory.getLogger(DepartmentService.class);
+
   private final DepartmentDao departmentDao;
+  private final ReferenceMapper referenceMapper;
 
-  @Autowired
-  public DepartmentService(DepartmentDao departmentDao) {
+  public DepartmentService(DepartmentDao departmentDao, ReferenceMapper referenceMapper) {
     this.departmentDao = departmentDao;
+    this.referenceMapper = referenceMapper;
   }
 
-  public Optional<Department> getDepartmentById(Integer departmentId) {
-    return departmentDao.findById(departmentId);
-  }
-
-  public Optional<List<Department>> getAllDepartments() {
-    return Optional.of(departmentDao.findAll());
+  public List<DepartmentResponse> findAll() {
+    return departmentDao.findAll().stream().map(referenceMapper::toResponse).toList();
   }
 }

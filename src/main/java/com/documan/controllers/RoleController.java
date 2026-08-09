@@ -6,93 +6,58 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.controllers;
 
+import com.documan.dto.response.RoleResponse;
+import com.documan.dto.response.UserResponse;
 import com.documan.service.RoleService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import java.util.List;
 import org.springframework.web.bind.annotation.*;
 
-@RestController()
+@RestController
 @RequestMapping("/api/v1/role")
 public class RoleController {
 
-  private static final Logger log = LoggerFactory.getLogger(RoleController.class);
   private final RoleService roleService;
 
   public RoleController(RoleService roleService) {
     this.roleService = roleService;
   }
 
-  @GetMapping()
-  public ResponseEntity<?> getRole(@RequestParam("roleId") Integer roleId) {
-    try {
-      return roleService
-          .getRoleById(roleId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-    } catch (Exception e) {
-      log.error(e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  @GetMapping
+  public RoleResponse getRole(@RequestParam("roleId") Integer roleId) {
+    return roleService.findById(roleId);
   }
 
   @GetMapping("/all")
-  public ResponseEntity<?> getAllRoles() {
-    try {
-      return roleService
-          .getAllRoles()
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-    } catch (Exception e) {
-      log.error(e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  public List<RoleResponse> getAllRoles() {
+    return roleService.findAll();
   }
 
   @GetMapping("/user")
-  public ResponseEntity<?> getUserRole(@RequestParam("userId") Integer userId) {
-    try {
-      return roleService
-          .getUserRole(userId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  public RoleResponse getUserRole(@RequestParam("userId") Integer userId) {
+    return roleService.findUserRole(userId);
   }
 
+  /**
+   * Administrators only, and this is the endpoint that most needed saying so.
+   *
+   * <p>{@code changeRole} validates the direction of the move and nothing about the caller, so
+   * before this annotation any holder of a valid token could promote themselves to {@code admin}
+   * with two integers — and {@code GET /role/all} above is a public read that hands out the second
+   * one. There is deliberately no exception for promoting yourself downward: demotion is still an
+   * administrator's act, and an administrator who wants to step down can be stepped down.
+   */
   @PutMapping("/promote")
-  public ResponseEntity<?> promoteUser(
+  @PreAuthorize("@permissions.isAdmin()")
+  public UserResponse promoteUser(
       @RequestParam("userId") Integer userId, @RequestParam("roleId") Integer roleId) {
-    try {
-      return roleService
-          .promoteUser(userId, roleId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+    return roleService.promote(userId, roleId);
   }
 
   @PutMapping("/demote")
-  public ResponseEntity<?> demoteUser(
+  @PreAuthorize("@permissions.isAdmin()")
+  public UserResponse demoteUser(
       @RequestParam("userId") Integer userId, @RequestParam("roleId") Integer roleId) {
-    try {
-      return roleService
-          .demoteUser(userId, roleId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+    return roleService.demote(userId, roleId);
   }
 }

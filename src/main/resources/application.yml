@@ -1,8 +1,147 @@
+# Shared configuration, applied on every profile.
+#
+# The active profile is written in at build time from the Maven profile, so the two stay in step:
+#
+#   Maven profile   Spring profile     Configuration file                  Use
+#   -------------   ----------------   ---------------------------------   ------------------------
+#   default         documan-secrets    application-documan-secrets.yml     gitignored; real secrets
+#   dev             dev                application-dev.yml                 the docker compose stack
+#   test            test               (supplied by the environment)       CI / staging
+#   production      production         (supplied by the environment)       deployment
+#
+#   mvn spring-boot:run -Pdev        # local, against redis-database.yml
+#   mvn spring-boot:run              # default profile; needs the gitignored secrets file
+#
+# application-documan.yml is the checked-in template for the secrets file, not a profile you run.
+# A profile can also be forced at runtime with -Dspring.profiles.active=dev.
 spring:
   application:
     name: "documan"
   profiles:
     active:
       "@spring.profiles.active@"
+
+  # This service is almost entirely I/O bound (PostgreSQL, Redis, R2), which is the case virtual
+  # threads are built for: a blocked request no longer pins an OS thread. With this on, the useful
+  # concurrency limit becomes the connection pools below rather than the servlet thread pool.
+  threads:
+    virtual:
+      enabled: true
+
+  jpa:
+    # Sessions must not stay open past the controller. With open-in-view a lazy association could
+    # still be initialised during response rendering, which is exactly the hidden N+1 source the
+    # entity-graph work is meant to remove.
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 50
+          time_zone: UTC
+        order_inserts: true
+        order_updates: true
+        query:
+          in_clause_parameter_padding: true
+          fail_on_pagination_over_collection_fetch: true
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 150MB
+      # Must stay above max-file-size: the request carries the file plus the form fields and
+      # multipart boundaries, so a limit equal to the file size rejects a file of exactly that size.
+      # Previously unset, which left the total request size effectively unbounded.
+      max-request-size: 160MB
+
+  data:
+    web:
+      pageable:
+        default-page-size: 20
+        max-page-size: 100
+        one-indexed-parameters: false
+
+  # Clerk. The publishable key sits in the client; nothing secret is needed here, because a session
+  # token is verified against Clerk's published signing keys rather than by asking Clerk about it.
+  #
+  # Both URLs come from the instance's own discovery document —
+  # <frontend-api>/.well-known/openid-configuration — rather than being assembled by hand. A
+  # development instance publishes on <slug>.clerk.accounts.dev and a production one on your own
+  # domain, so these move together when the instance does.
+  #
+  #   CLERK_ISSUER_URI     the `iss` the tokens carry, exactly
+  #   CLERK_JWK_SET_URI    where its signing keys are published
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${CLERK_ISSUER_URI:https://fleet-lizard-10.clerk.accounts.dev}
+          # Named rather than discovered — see WebSecurityConfig.jwtDecoder for why the service must
+          # not need Clerk to be reachable in order to start.
+          jwk-set-uri: ${CLERK_JWK_SET_URI:https://fleet-lizard-10.clerk.accounts.dev/.well-known/jwks.json}
+
 server:
   port: 8080
+  http2:
+    enabled: true
+  compression:
+    enabled: true
+    mime-types: application/json,application/problem+json
+    min-response-size: 1024
+  error:
+    whitelabel:
+      enabled: false
+  tomcat:
+    accept-count: 200
+    max-connections: 10000
+    threads:
+      # Request handling runs on virtual threads, so this pool only backs the small amount of
+      # work Tomcat still does on platform threads.
+      max: 50
+      min-spare: 10
+
+documan:
+  auth:
+    # Checked by AudienceValidator, which is skipped when this is blank.
+    #
+    # Blank is the honest default for Clerk. A Clerk session token carries no `aud` unless the JWT
+    # template sets one, and the issuer above is already a single instance belonging to this
+    # application alone — there is no second API in it that could hold a token this service would
+    # then wrongly accept, which is the whole risk an audience check answers. Set it here and in the
+    # template's audience field together, or leave both empty; a value set on only one side rejects
+    # every request.
+    audience: ${CLERK_AUDIENCE:}
+
+  search:
+    # Which Meilisearch to talk to — enabled, host, api-key, index-prefix — lives in the profile
+    # files, not here. Those four differ per environment: the host and key are per-deployment, the
+    # api-key is a secret that does not belong in a checked-in shared file, and because index uids
+    # are global to a Meilisearch instance the prefix is the only thing keeping two environments
+    # that share one server from overwriting each other's documents.
+    #
+    # Meilisearch is optional, and SearchProperties defaults `enabled` to false. A profile that says
+    # nothing therefore gets no client, no drainer and no /api/v1/search endpoints, and the capture
+    # layer becomes a no-op — the service runs exactly as it did before search existed. Switching it
+    # on is a deliberate, per-environment act.
+    #
+    # What stays below is behaviour that should not drift between environments.
+
+    # An unbounded call is how a search outage turns into a thread-pool outage.
+    request-timeout: 10s
+    reconcile:
+      # Marks every indexed row dirty so the index converges on the database even if a change was
+      # missed. Only enqueues — the drainer does the pushing, so this costs four set-based inserts
+      # regardless of table size, and search keeps serving throughout because documents are
+      # upserted rather than cleared and rebuilt.
+      #
+      # On by default whenever search is on (matchIfMissing); a profile can switch it off.
+      cron: "0 0 */6 * * *"
+    outbox:
+      batch-size: 200
+      poll-interval: 5s
+      max-attempts: 8
+      # Votes and favourites only move a tally, so they are held briefly and collapsed. A genuine
+      # edit arriving meanwhile pulls the entity forward and is not delayed.
+      counter-debounce: 60s
+

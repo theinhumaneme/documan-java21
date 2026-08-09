@@ -1,0 +1,47 @@
+# Test defaults.
+#
+# The datastore coordinates come from Testcontainers via @ServiceConnection, so nothing is
+# hard-coded here. H2 was removed: production runs on PostgreSQL, and the outbox depends on
+# PostgreSQL-only syntax (ON CONFLICT, LEAST) that an in-memory stand-in cannot honestly emulate.
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    show-sql: false
+  cache:
+    type: none
+  threads:
+    virtual:
+      enabled: true
+
+
+cloudflare:
+  r2:
+    endpoint: http://localhost:9000
+    access-key-id: test
+    secret-access-key: test
+    files-bucket: documan-files
+    files-bucket-public-access-url: http://localhost:9000/documan-files
+    public-read-acl: false
+
+documan:
+  search:
+    # Off by default so the bulk of the suite neither needs Meilisearch nor pays to enqueue rows
+    # for every fixture it creates. The search tests switch it on.
+    enabled: false
+    reconcile:
+      enabled: false
+    drainer:
+      # Even when search is on, tests drive draining explicitly. A background sweep racing an
+      # asynchronous Meilisearch task is a reliable way to manufacture flaky tests.
+      enabled: false
+    outbox:
+      counter-debounce: 0s
+
+logging:
+  level:
+    org.springframework: warn
+    org.hibernate: warn
+    org.testcontainers: warn
+    com.github.dockerjava: warn

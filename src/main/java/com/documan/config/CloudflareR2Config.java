@@ -15,6 +15,7 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 @Configuration
 public class CloudflareR2Config {
@@ -30,17 +31,39 @@ public class CloudflareR2Config {
 
   @Bean
   public S3Client s3Client() {
-    AwsBasicCredentials awsCredentials =
-        AwsBasicCredentials.create(cloudflareR2AccessKeyId, cloudflareR2SecretAccessKey);
-
     S3Configuration s3Configuration =
         S3Configuration.builder().pathStyleAccessEnabled(true).build();
 
     return S3Client.builder()
-        .credentialsProvider(StaticCredentialsProvider.create(awsCredentials))
+        .credentialsProvider(credentials())
         .endpointOverride(URI.create(cloudflareR2Endpoint))
         .serviceConfiguration(s3Configuration)
         .region(Region.of("auto"))
         .build();
+  }
+
+  /**
+   * Signs download URLs.
+   *
+   * <p>Needed because the bucket's public URL cannot be made to trigger a download. R2 serves an
+   * object with its content type and no {@code Content-Disposition}, so a browser renders a PDF or
+   * an image inline, and the {@code download} attribute on a link is ignored cross-origin.
+   * Presigning lets the disposition and the filename be set per request without changing how the
+   * object is stored, and the download still comes from Cloudflare's edge rather than through this
+   * service.
+   */
+  @Bean
+  public S3Presigner s3Presigner() {
+    return S3Presigner.builder()
+        .credentialsProvider(credentials())
+        .endpointOverride(URI.create(cloudflareR2Endpoint))
+        .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
+        .region(Region.of("auto"))
+        .build();
+  }
+
+  private StaticCredentialsProvider credentials() {
+    return StaticCredentialsProvider.create(
+        AwsBasicCredentials.create(cloudflareR2AccessKeyId, cloudflareR2SecretAccessKey));
   }
 }

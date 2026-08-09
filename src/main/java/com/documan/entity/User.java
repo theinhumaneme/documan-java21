@@ -6,23 +6,28 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.entity;
 
-import com.fasterxml.jackson.annotation.*;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import java.time.OffsetDateTime;
-import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+/**
+ * The owning side of every user relationship now lives in a dedicated join entity or is reached
+ * through a paginated repository query. The previous {@code @ManyToMany List<Post>} collections for
+ * votes and favourites meant a single vote had to materialise every voter, so they were removed
+ * rather than made lazy.
+ */
 @Entity
 @Table(
     name = "documan_user",
     indexes = {
       @Index(name = "idx_user_username", columnList = "username", unique = true),
       @Index(name = "idx_user_email", columnList = "email", unique = true),
-      @Index(name = "idx_user_department_id  ", columnList = "department_id"),
+      @Index(name = "idx_user_external_id", columnList = "external_id", unique = true),
+      @Index(name = "idx_user_department_id", columnList = "department_id"),
       @Index(name = "idx_user_year_id", columnList = "year_id"),
       @Index(name = "idx_user_semester_id", columnList = "semester_id"),
       @Index(name = "idx_user_role_id", columnList = "role_id")
@@ -40,9 +45,27 @@ public class User {
   @Column(name = "username", unique = true, nullable = false)
   private String username;
 
-  @NotNull
-  @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-  @Column(name = "password", nullable = false)
+  /**
+   * The identity provider's own id for this person — Clerk's {@code sub} — and the only claim safe
+   * to key a row on. A username and an email address are both things someone can change; changing
+   * either would strand the row and silently provision a second one at the next sign-in.
+   *
+   * <p>Named for the role rather than the provider, because this is the second provider it has held
+   * and the column should not have to be renamed for a third.
+   *
+   * <p>Null on rows that predate the provider, which is why the unique index is the constraint
+   * rather than {@code nullable = false}: PostgreSQL does not consider two nulls equal, so those
+   * rows coexist and can be claimed later without a migration.
+   */
+  @Column(name = "external_id", unique = true)
+  private String externalId;
+
+  /**
+   * Null for every account that signs in through Clerk, which after the migration is all of them.
+   * The provider holds the credential and this service never sees one; the column stays for rows
+   * created before it and goes when they do.
+   */
+  @Column(name = "password")
   private String password;
 
   @NotNull
@@ -50,144 +73,59 @@ public class User {
   private String firstName;
 
   @NotNull
-  @Column(name = "last_name")
+  @Column(name = "last_name", nullable = false)
   private String lastName;
 
   @NotNull
   @Column(name = "email", unique = true, nullable = false)
   private String email;
 
-  @NotNull
-  @Column(name = "terms_of_service", nullable = false, columnDefinition = "boolean DEFAULT false")
+  @Column(name = "terms_of_service", nullable = false, columnDefinition = "boolean default false")
   private boolean acceptedTermsOfService;
 
-  @NotNull
-  @Column(name = "isVerified", nullable = false, columnDefinition = "boolean DEFAULT false")
-  private boolean isVerified;
+  @Column(name = "is_verified", nullable = false, columnDefinition = "boolean default false")
+  private boolean verified;
 
-  @NotNull
-  @Column(name = "can_post", nullable = false, columnDefinition = "boolean DEFAULT false")
+  @Column(name = "can_post", nullable = false, columnDefinition = "boolean default false")
   private boolean canPost;
 
-  @NotNull
-  @Column(name = "can_comment", nullable = false, columnDefinition = "boolean DEFAULT false")
+  @Column(name = "can_comment", nullable = false, columnDefinition = "boolean default false")
   private boolean canComment;
 
-  @NotNull
-  @Column(name = "date_created", nullable = false)
+  @Version
+  @Column(name = "version", nullable = false, columnDefinition = "bigint default 0")
+  private long version;
+
+  @Column(name = "date_created", nullable = false, updatable = false)
   @CreationTimestamp
   private OffsetDateTime dateCreated;
 
-  @NotNull
   @Column(name = "date_last_interacted", nullable = false)
   @UpdateTimestamp
   private OffsetDateTime dateLastInteracted;
 
   @JoinColumn(name = "role_id", nullable = false)
-  @ManyToOne(fetch = FetchType.EAGER)
-  @JsonBackReference(value = "user-roles")
+  @ManyToOne(fetch = FetchType.EAGER, optional = false)
   private Role role;
 
-  @JoinColumn(name = "department_id", nullable = false)
+  /**
+   * Where the reader sits in the course structure. All three are null on an account just
+   * provisioned from a token, and stay so until the registration form files them: the identity
+   * provider knows who someone is, not which department, year and semester they study in.
+   *
+   * <p>They were {@code nullable = false}, which is what a self-registration form could guarantee
+   * and just-in-time provisioning cannot. Nothing reads them for authorisation — they scope the
+   * library view — so a null is a reader who has not chosen yet, not a broken row.
+   */
+  @JoinColumn(name = "department_id")
   @ManyToOne(fetch = FetchType.EAGER)
-  @JsonBackReference(value = "user-department")
   private Department department;
 
-  @JoinColumn(name = "year_id", nullable = false)
+  @JoinColumn(name = "year_id")
   @ManyToOne(fetch = FetchType.EAGER)
-  @JsonBackReference(value = "users-year")
   private Year year;
 
-  @JoinColumn(name = "semester_id", nullable = false)
+  @JoinColumn(name = "semester_id")
   @ManyToOne(fetch = FetchType.EAGER)
-  @JsonBackReference(value = "users-semester")
   private Semester semester;
-
-  @JsonIgnore
-  @OneToMany(fetch = FetchType.LAZY, mappedBy = "user")
-  @JsonManagedReference(value = "user-posts")
-  private List<Post> posts;
-
-  @JsonIgnore
-  @OneToMany(fetch = FetchType.LAZY, mappedBy = "user")
-  @JsonManagedReference(value = "user-comments")
-  private List<Comment> comments;
-
-  // Files favorite by the user
-  @JsonIgnore
-  @ManyToMany()
-  @JoinTable(
-      name = "favourite_files",
-      joinColumns = @JoinColumn(name = "user_id"),
-      inverseJoinColumns = @JoinColumn(name = "file_id"),
-      indexes = {
-        @Index(name = "idx_favourite_files_user_id", columnList = "user_id"),
-        @Index(name = "idx_favourite_files_file_id", columnList = "file_id")
-      })
-  private List<File> favouriteFiles;
-
-  // Posts favorite by the user
-  @JsonIgnore
-  @ManyToMany()
-  @JoinTable(
-      name = "favourite_posts",
-      joinColumns = @JoinColumn(name = "user_id"),
-      inverseJoinColumns = @JoinColumn(name = "post_id"),
-      indexes = {
-        @Index(name = "idx_favourite_posts_user_id", columnList = "user_id"),
-        @Index(name = "idx_favourite_posts_post_id", columnList = "post_id")
-      })
-  private List<Post> favoritePosts;
-
-  // Posts upvoted by the user
-  @JsonIgnore
-  @ManyToMany()
-  @JoinTable(
-      name = "upvoted_posts",
-      joinColumns = @JoinColumn(name = "user_id"),
-      inverseJoinColumns = @JoinColumn(name = "post_id"),
-      indexes = {
-        @Index(name = "idx_upvoted_posts_user_id", columnList = "user_id"),
-        @Index(name = "idx_upvoted_posts_post_id", columnList = "post_id")
-      })
-  private List<Post> upvotedPosts;
-
-  // Posts downvoted by the user
-  @JsonIgnore
-  @ManyToMany()
-  @JoinTable(
-      name = "downvoted_posts",
-      joinColumns = @JoinColumn(name = "user_id"),
-      inverseJoinColumns = @JoinColumn(name = "post_id"),
-      indexes = {
-        @Index(name = "idx_downvoted_posts_user_id", columnList = "user_id"),
-        @Index(name = "idx_downvoted_posts_post_id", columnList = "post_id")
-      })
-  private List<Post> downvotedPosts;
-
-  // Comments upvoted by the user
-  @JsonIgnore
-  @ManyToMany()
-  @JoinTable(
-      name = "upvoted_comments",
-      joinColumns = @JoinColumn(name = "user_id"),
-      inverseJoinColumns = @JoinColumn(name = "comment_id"),
-      indexes = {
-        @Index(name = "idx_upvoted_comments_user_id", columnList = "user_id"),
-        @Index(name = "idx_upvoted_comments_comment_id", columnList = "comment_id")
-      })
-  private List<Comment> upvotedComments;
-
-  // Comments downvoted by the user
-  @JsonIgnore
-  @ManyToMany()
-  @JoinTable(
-      name = "downvoted_comments",
-      joinColumns = @JoinColumn(name = "user_id"),
-      inverseJoinColumns = @JoinColumn(name = "comment_id"),
-      indexes = {
-        @Index(name = "idx_downvoted_comments_user_id", columnList = "user_id"),
-        @Index(name = "idx_downvoted_comments_comment_id", columnList = "comment_id")
-      })
-  private List<Comment> downvotedComments;
 }

@@ -6,20 +6,26 @@
 // sublicense, and/or sell copies of the software.
 package com.documan.controllers;
 
-import com.documan.entity.Post;
+import com.documan.dto.request.CreatePostRequest;
+import com.documan.dto.request.UpdatePostRequest;
+import com.documan.dto.response.PageResponse;
+import com.documan.dto.response.PostResponse;
+import com.documan.entity.VoteType;
 import com.documan.service.FavouriteService;
 import com.documan.service.PostService;
 import com.documan.service.VoteService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/post")
 public class PostController {
-  private static final Logger log = LoggerFactory.getLogger(PostController.class);
+
   private final PostService postService;
   private final VoteService voteService;
   private final FavouriteService favouriteService;
@@ -32,152 +38,93 @@ public class PostController {
   }
 
   @GetMapping
-  public ResponseEntity<?> getPost(@RequestParam("postId") Integer postId) {
-    try {
-      return postService
-          .findById(postId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  public PostResponse getPost(@RequestParam("postId") Integer postId) {
+    return postService.findById(postId);
   }
 
   @GetMapping("/all")
-  public ResponseEntity<?> getAllPosts() {
-    try {
-      return postService
-          .getAllPosts()
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  public PageResponse<PostResponse> getAllPosts(
+      @PageableDefault(size = 20, sort = "dateCreated", direction = Sort.Direction.DESC)
+          Pageable pageable) {
+    return postService.findAll(pageable);
   }
 
   @GetMapping("/user")
-  public ResponseEntity<?> getPostsByUser(@RequestParam("userId") Integer userId) {
-    try {
-      return postService
-          .getPostsByUser(userId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  public PageResponse<PostResponse> getPostsByUser(
+      @RequestParam("userId") Integer userId,
+      @PageableDefault(size = 20, sort = "dateCreated", direction = Sort.Direction.DESC)
+          Pageable pageable) {
+    return postService.findByUser(userId, pageable);
   }
 
+  /**
+   * Writing needs the posting grant, and the named author has to be you.
+   *
+   * <p>{@code isSelf} is what stops {@code ?userId=} being an impersonation here: the parameter
+   * still names the author, but it may now only name the token's owner. Announcing needs an
+   * administrator on top, because the flag is taken straight off the request and would otherwise be
+   * anyone's to set.
+   */
   @PostMapping
-  public ResponseEntity<?> createPost(
-      @RequestBody Post post, @RequestParam("userId") Integer userId) {
-    try {
-      return postService
-          .createPost(post, userId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing the post.");
-    }
+  @ResponseStatus(HttpStatus.CREATED)
+  @PreAuthorize(
+      "@permissions.isSelf(#userId) and @permissions.mayPost()"
+          + " and (!#request.announcement() or @permissions.mayAnnounce())")
+  public PostResponse createPost(
+      @Valid @RequestBody CreatePostRequest request, @RequestParam("userId") Integer userId) {
+    return postService.create(request, userId);
   }
 
+  /** The author, or a moderator. Changing the announcement flag still needs an administrator. */
   @PutMapping
-  public ResponseEntity<?> updatePost(
-      @RequestBody Post post, @RequestParam("postId") Integer postId) {
-    try {
-      return postService
-          .updatePost(post, postId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing the post.");
-    }
+  @PreAuthorize(
+      "@permissions.mayEditPost(#postId)"
+          + " and @permissions.mayAnnounceOn(#postId, #request.announcement())")
+  public PostResponse updatePost(
+      @Valid @RequestBody UpdatePostRequest request, @RequestParam("postId") Integer postId) {
+    return postService.update(postId, request);
   }
+
+  // Voting and favouriting need no grant beyond being signed in — they are how a reader reacts, and
+  // withholding them is not a moderation tool this application has. What they do need is to be your
+  // own: a vote cast in someone else's name is ballot-stuffing wearing their identity.
 
   @PostMapping("/vote")
-  public ResponseEntity<?> votePost(
-      @RequestParam("voteType") String voteType,
+  @PreAuthorize("@permissions.isSelf(#userId)")
+  public PostResponse votePost(
+      @RequestParam("voteType") VoteType voteType,
       @RequestParam("postId") Integer postId,
       @RequestParam("userId") Integer userId) {
-    try {
-      return voteService
-          .votePost(userId, postId, voteType)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while applying the vote");
-    }
+    return voteService.votePost(postId, userId, voteType);
   }
 
   @PostMapping("/vote/remove")
-  public ResponseEntity<?> removeVotePost(
-      @RequestParam("voteType") String voteType,
+  @PreAuthorize("@permissions.isSelf(#userId)")
+  public PostResponse removeVotePost(
+      @RequestParam("voteType") VoteType voteType,
       @RequestParam("postId") Integer postId,
       @RequestParam("userId") Integer userId) {
-    try {
-      return voteService
-          .removeVotePost(userId, postId, voteType)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while applying the vote");
-    }
+    return voteService.removeVotePost(postId, userId, voteType);
   }
 
   @PostMapping("/favourite")
-  public ResponseEntity<?> favouritePost(
+  @PreAuthorize("@permissions.isSelf(#userId)")
+  public PostResponse favouritePost(
       @RequestParam("postId") Integer postId, @RequestParam("userId") Integer userId) {
-    try {
-      return favouriteService
-          .favouritePost(postId, userId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while applying the vote");
-    }
+    return favouriteService.favouritePost(postId, userId);
   }
 
   @PostMapping("/favourite/remove")
-  public ResponseEntity<?> removeFavouritePost(
+  @PreAuthorize("@permissions.isSelf(#userId)")
+  public PostResponse removeFavouritePost(
       @RequestParam("postId") Integer postId, @RequestParam("userId") Integer userId) {
-    try {
-      return favouriteService
-          .removeFavouritePost(postId, userId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.BAD_REQUEST).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while applying the vote");
-    }
+    return favouriteService.removeFavouritePost(postId, userId);
   }
 
-  @DeleteMapping()
-  public ResponseEntity<?> deleteComment(@RequestParam(value = "postId") Integer postId) {
-    try {
-      return postService
-          .deletePost(postId)
-          .map(ResponseEntity::ok)
-          .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-    } catch (Exception e) {
-      log.error(e.toString());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred while processing your request");
-    }
+  @DeleteMapping
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  @PreAuthorize("@permissions.mayEditPost(#postId)")
+  public void deletePost(@RequestParam("postId") Integer postId) {
+    postService.delete(postId);
   }
 }

@@ -7,11 +7,23 @@
 package com.documan.dao;
 
 import com.documan.entity.User;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface UserDao extends JpaRepository<User, Integer> {
 
-  User findByUsername(String username);
+  /** How a token finds its row. See {@code User.externalId} for why not by username. */
+  Optional<User> findByExternalId(String externalId);
 
-  User findByEmail(String email);
+  Optional<User> findByUsername(String username);
+
+  Optional<User> findByEmail(String email);
+
+  boolean existsByUsername(String username);
+
+  boolean existsByEmail(String email);
+
+  boolean existsByUsernameAndIdNot(String username, Integer id);
+
+  boolean existsByEmailAndIdNot(String email, Integer id);
 }
